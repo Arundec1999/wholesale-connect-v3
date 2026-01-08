@@ -36,10 +36,8 @@ header{
   border-radius:8px;
   box-shadow:0 2px 8px rgba(0,0,0,.06);
 }
-h3{
-  margin-top:0;
-}
-input,textarea{
+h3{margin-top:0}
+input,textarea,select{
   width:100%;
   padding:8px;
   margin:6px 0 12px;
@@ -64,10 +62,10 @@ button.secondary{
   justify-content:space-between;
   align-items:center;
   margin-bottom:12px;
+  gap:10px;
 }
 .search{
-  width:260px;
-  padding:8px;
+  width:220px;
 }
 
 /* PRODUCT CARD */
@@ -122,6 +120,7 @@ button.secondary{
   <!-- ADD / EDIT PRODUCT -->
   <div class="left">
     <h3 id="formTitle">Add Product</h3>
+
     <input id="pCode" placeholder="Product Code">
     <input id="pName" placeholder="Product Name">
     <textarea id="pDesc" placeholder="Description"></textarea>
@@ -129,16 +128,28 @@ button.secondary{
     <input id="pPrice" placeholder="Price per PC">
     <input id="pGST" placeholder="GST %">
     <input id="pImages" placeholder="Image URLs (comma separated)">
+
     <button onclick="saveProduct()" id="saveBtn">Save Product</button>
-    <button class="secondary" onclick="resetForm()" id="cancelBtn" style="display:none">Cancel Edit</button>
+    <button class="secondary" onclick="resetForm()" id="cancelBtn" style="display:none">
+      Cancel Edit
+    </button>
   </div>
 
   <!-- ALL PRODUCTS -->
   <div class="right">
     <div class="top">
       <b>All Products</b>
+
+      <select id="sort" onchange="render()">
+        <option value="latest">Latest Added</option>
+        <option value="priceAsc">Price: Low → High</option>
+        <option value="priceDesc">Price: High → Low</option>
+        <option value="nameAsc">Name: A → Z</option>
+      </select>
+
       <input id="search" class="search" placeholder="Search" oninput="render()">
     </div>
+
     <div id="list">Loading products…</div>
   </div>
 
@@ -151,18 +162,36 @@ const SUPPLIER_ID="SUP001";
 let products=[];
 let editingProduct=null;
 
-/* SAVE / ADD */
+/* SAVE / UPDATE PRODUCT */
 function saveProduct(){
+
+  if(!pCode.value || !pName.value){
+    alert("Product Code & Name required");
+    return;
+  }
+
+  /* UPDATE */
   if(editingProduct){
-    alert("Update backend will be added later.\nEdit loaded successfully for now.");
+    fetch(`${API}?action=updateProduct`
+      +`&supplierId=${encodeURIComponent(SUPPLIER_ID)}`
+      +`&productCode=${encodeURIComponent(pCode.value)}`
+      +`&productName=${encodeURIComponent(pName.value)}`
+      +`&description=${encodeURIComponent(pDesc.value)}`
+      +`&sizesJSON=${encodeURIComponent(JSON.stringify(pSizes.value.split(",").map(s=>s.trim())))}`
+      +`&pricePerPC=${encodeURIComponent(pPrice.value)}`
+      +`&gstPercent=${encodeURIComponent(pGST.value)}`
+      +`&imageURLsJSON=${encodeURIComponent(JSON.stringify(pImages.value.split(",").map(i=>i.trim())))}`
+    )
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success"){ alert(j.message); return; }
+      resetForm();
+      loadProducts();
+    });
     return;
   }
 
-  if(!pCode.value||!pName.value){
-    alert("Code & Name required");
-    return;
-  }
-
+  /* ADD */
   fetch(`${API}?action=addProduct`
     +`&supplierId=${encodeURIComponent(SUPPLIER_ID)}`
     +`&productCode=${encodeURIComponent(pCode.value)}`
@@ -175,7 +204,7 @@ function saveProduct(){
   )
   .then(r=>r.json())
   .then(j=>{
-    if(j.status!=="success"){alert(j.message);return;}
+    if(j.status!=="success"){ alert(j.message); return; }
     resetForm();
     loadProducts();
   });
@@ -191,22 +220,34 @@ function loadProducts(){
     });
 }
 
-/* RENDER */
+/* RENDER PRODUCTS */
 function render(){
-  const q=search.value.toLowerCase();
-  list.innerHTML="";
+  const q = search.value.toLowerCase();
+  const sort = document.getElementById("sort").value;
 
-  const f=products.filter(p =>
+  let listData = products.filter(p =>
     String(p.productCode).toLowerCase().includes(q) ||
     String(p.productName).toLowerCase().includes(q)
   );
 
-  if(!f.length){
+  if(sort==="priceAsc"){
+    listData.sort((a,b)=>a.pricePerPC-b.pricePerPC);
+  }
+  else if(sort==="priceDesc"){
+    listData.sort((a,b)=>b.pricePerPC-a.pricePerPC);
+  }
+  else if(sort==="nameAsc"){
+    listData.sort((a,b)=>a.productName.localeCompare(b.productName));
+  }
+  // latest handled by backend order
+
+  list.innerHTML="";
+  if(!listData.length){
     list.innerHTML="<div class='empty'>No products</div>";
     return;
   }
 
-  f.forEach(p=>{
+  listData.forEach(p=>{
     list.innerHTML+=`
       <div class="product">
         <img src="${p.imageURLs?.[0] || ""}">
@@ -224,7 +265,7 @@ function render(){
   });
 }
 
-/* EDIT (FRONTEND ONLY) */
+/* EDIT */
 function editProduct(p){
   editingProduct=p;
   formTitle.innerText="Edit Product";
@@ -241,14 +282,21 @@ function editProduct(p){
   pImages.value=(p.imageURLs||[]).join(",");
 }
 
-/* RESET */
+/* RESET FORM */
 function resetForm(){
   editingProduct=null;
   formTitle.innerText="Add Product";
   saveBtn.innerText="Save Product";
   cancelBtn.style.display="none";
   pCode.disabled=false;
-  pCode.value=pName.value=pDesc.value=pSizes.value=pPrice.value=pGST.value=pImages.value="";
+
+  pCode.value="";
+  pName.value="";
+  pDesc.value="";
+  pSizes.value="";
+  pPrice.value="";
+  pGST.value="";
+  pImages.value="";
 }
 
 loadProducts();
