@@ -144,28 +144,65 @@ let selected=null;
 
 /* LOAD PRODUCTS */
 function loadProducts(){
-  fetch(`${API}?action=getProductStockSummary&supplierId=${SUPPLIER_ID}`)
-    .then(r=>r.json())
-    .then(j=>{
-      products=j.data||[];
-      renderProducts();
+  productList.innerHTML = "Loading…";
+
+  Promise.all([
+    fetch(`${API}?action=getProductsBySupplier&supplierId=${SUPPLIER_ID}`)
+      .then(r=>r.json()),
+    fetch(`${API}?action=getProductStockSummary&supplierId=${SUPPLIER_ID}`)
+      .then(r=>r.json())
+  ])
+  .then(([prodRes, stockRes])=>{
+    if(prodRes.status!=="success" || stockRes.status!=="success"){
+      productList.innerHTML="Failed to load products";
+      return;
+    }
+
+    const stockMap = {};
+    stockRes.data.forEach(s=>{
+      stockMap[String(s.productCode)] = s;
     });
+
+    // ✅ merge stock into products
+    products = prodRes.data.map(p=>{
+      const s = stockMap[String(p.productCode)] || {};
+      return {
+        ...p,
+        masterStock: s.masterStock || 0,
+        allocatedStock: s.allocatedStock || 0,
+        availableToAllocate: Math.max(0, s.availableToAllocate || 0)
+      };
+    });
+
+    renderProducts();
+  })
+  .catch(()=>{
+    productList.innerHTML="Backend not reachable";
+  });
 }
+
 
 /* RENDER PRODUCTS */
 function renderProducts(){
-  const q=search.value.toLowerCase();
-  productList.innerHTML="";
+  const q = search.value.toLowerCase();
+  productList.innerHTML = "";
 
-  products.filter(p=>
+  const list = products.filter(p =>
     String(p.productCode).includes(q) ||
     p.productName.toLowerCase().includes(q)
-  ).forEach(p=>{
-    const avail=Math.max(0,p.availableToAllocate);
+  );
 
-    productList.innerHTML+=`
+  if(!list.length){
+    productList.innerHTML = "<div style='color:#777'>No products</div>";
+    return;
+  }
+
+  list.forEach(p=>{
+    const avail = Math.max(0, p.availableToAllocate);
+
+    productList.innerHTML += `
       <div class="card">
-        <img src="${p.imageURLs?.[0]||""}">
+        <img src="${p.imageURLs?.[0] || ""}">
         <div style="flex:1">
           <b>${p.productCode}</b>
           <small>${p.productName}</small>
@@ -178,8 +215,11 @@ function renderProducts(){
           </small>
         </div>
         <button onclick="selectProduct('${p.productCode}')"
-          ${avail<=0?'disabled':''}>Add</button>
-      </div>`;
+          ${avail<=0?'disabled':''}>
+          Add
+        </button>
+      </div>
+    `;
   });
 }
 
