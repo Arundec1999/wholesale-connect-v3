@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Product Master</title>
+
+<style>
+body{
+  font-family: Arial, sans-serif;
+  background:#f5f5f5;
+  margin:0;
+}
+header{
+  background:#fff;
+  padding:14px;
+  border-bottom:1px solid #ddd;
+  font-size:18px;
+  font-weight:bold;
+}
+.container{
+  display:flex;
+  gap:20px;
+  padding:16px;
+}
+
+/* LEFT PANEL */
+.left{
+  width:340px;
+  background:#fff;
+  padding:16px;
+  border-radius:8px;
+}
+.left h3{
+  margin-top:0;
+}
+input, textarea{
+  width:100%;
+  padding:8px;
+  margin-top:6px;
+  margin-bottom:12px;
+  border:1px solid #ccc;
+  border-radius:4px;
+}
+button{
+  padding:10px;
+  background:#000;
+  color:#fff;
+  border:none;
+  cursor:pointer;
+  border-radius:4px;
+  width:100%;
+}
+
+/* RIGHT PANEL */
+.right{
+  flex:1;
+  background:#fff;
+  padding:16px;
+  border-radius:8px;
+}
+.top-bar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:10px;
+}
+.search{
+  width:60%;
+}
+.product{
+  display:flex;
+  gap:12px;
+  padding:12px 0;
+  border-bottom:1px solid #eee;
+}
+.product img{
+  width:60px;
+  height:80px;
+  object-fit:cover;
+  background:#e0f7fa;
+}
+.product-details{
+  flex:1;
+}
+.product-details small{
+  color:#555;
+}
+.edit-btn{
+  background:#000;
+  color:#fff;
+  padding:6px 10px;
+  border:none;
+  border-radius:4px;
+  cursor:pointer;
+}
+.empty{
+  color:#777;
+  margin-top:20px;
+}
+</style>
+</head>
+
+<body>
+
+<header>PRODUCT MASTER</header>
+
+<div class="container">
+
+  <!-- LEFT: ADD PRODUCT -->
+  <div class="left">
+    <h3>Add Product</h3>
+
+    <input id="pCode" placeholder="Product Code (internal)">
+    <input id="pName" placeholder="Product Name">
+    <textarea id="pDesc" placeholder="Product description"></textarea>
+    <input id="pSizes" placeholder="Sizes (M, L, XL)">
+    <input id="pPrice" placeholder="Price per PC">
+    <input id="pGST" placeholder="GST %">
+    <input id="pImages" placeholder="Image URLs (comma separated)">
+
+    <button onclick="saveProduct()">Save Product</button>
+  </div>
+
+  <!-- RIGHT: ALL PRODUCTS -->
+  <div class="right">
+    <div class="top-bar">
+      <b>ALL Products</b>
+      <input id="search" class="search" placeholder="Search product code / name" oninput="render()">
+    </div>
+
+    <div id="list">Loading products…</div>
+  </div>
+
+</div>
+
+<script>
+/* ================= CONFIG ================= */
+const API =
+  "https://script.google.com/macros/s/AKfycbyBWZeeZbMCpSaOcXeGzXc1o3HMGfko8n2YI4Veu2Ru2CQtyOKN6JNmJMt6ueqBrxxo/exec";
+
+const SUPPLIER_ID = "SUP001";
+
+let products = [];
+
+/* ================= ADD PRODUCT ================= */
+function saveProduct(){
+
+  if(!pCode.value || !pName.value){
+    alert("Product Code and Name required");
+    return;
+  }
+
+  const url =
+    `${API}?action=addProduct`
+    + `&supplierId=${encodeURIComponent(SUPPLIER_ID)}`
+    + `&productCode=${encodeURIComponent(pCode.value)}`
+    + `&productName=${encodeURIComponent(pName.value)}`
+    + `&description=${encodeURIComponent(pDesc.value)}`
+    + `&sizesJSON=${encodeURIComponent(JSON.stringify(pSizes.value.split(",").map(s=>s.trim())))}`  
+    + `&pricePerPC=${encodeURIComponent(pPrice.value)}`
+    + `&gstPercent=${encodeURIComponent(pGST.value)}`
+    + `&imageURLsJSON=${encodeURIComponent(JSON.stringify(pImages.value.split(",").map(i=>i.trim())))}`;
+
+  fetch(url)
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success"){
+        alert(j.message || "Error");
+        return;
+      }
+      clearForm();
+      loadProducts();
+      alert("Product added");
+    });
+}
+
+function clearForm(){
+  pCode.value="";
+  pName.value="";
+  pDesc.value="";
+  pSizes.value="";
+  pPrice.value="";
+  pGST.value="";
+  pImages.value="";
+}
+
+/* ================= LOAD PRODUCTS ================= */
+function loadProducts(){
+  fetch(`${API}?action=getSupplierUpdates&supplierId=${SUPPLIER_ID}`)
+    .then(r=>r.json())
+    .then(j=>{
+      products = [];
+      (j.data||[]).forEach(b=>{
+        b.products.forEach(p=>{
+          products.push(p);
+        });
+      });
+      render();
+    });
+}
+
+function render(){
+  const q = search.value.toLowerCase();
+  const el = document.getElementById("list");
+  el.innerHTML="";
+
+  const filtered = products.filter(p =>
+    p.productCode.toLowerCase().includes(q) ||
+    p.productName.toLowerCase().includes(q)
+  );
+
+  if(!filtered.length){
+    el.innerHTML = "<div class='empty'>No products found</div>";
+    return;
+  }
+
+  filtered.forEach(p=>{
+    el.innerHTML += `
+      <div class="product">
+        <img src="${p.imageURLs[0]||""}">
+        <div class="product-details">
+          <b>${p.productCode}</b><br>
+          <small>${p.productName}</small><br>
+          <small>Sizes: ${p.sizes.join(", ")}</small><br>
+          <small>Price: ₹${p.pricePerPC}</small>
+        </div>
+        <button class="edit-btn" disabled>Edit</button>
+      </div>
+    `;
+  });
+}
+
+/* INIT */
+loadProducts();
+</script>
+
+</body>
+</html>
