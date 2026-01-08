@@ -89,7 +89,7 @@ button.warn{background:#c62828}
 
 <!-- LEFT: PRODUCTS -->
 <div class="panel">
-  <h3>Products (Godown vs Allocated)</h3>
+  <h3>Products (Godown / Allocated / Available)</h3>
 
   <div class="top">
     <input id="search" placeholder="Search product" oninput="renderProducts()">
@@ -131,11 +131,11 @@ button.warn{background:#c62828}
   </div>
 </div>
 
-<!-- RIGHT: INFO -->
+<!-- RIGHT: CURRENT BATCH -->
 <div class="panel">
-  <h3>Batch Info</h3>
+  <h3>Current Batch</h3>
   <div id="batchItems" style="font-size:14px;color:#777">
-    Start a batch to begin allocating stock.
+    No active batch
   </div>
 
   <button style="margin-top:16px" onclick="publishBatch()">
@@ -233,7 +233,7 @@ function startBatch(){
 }
 
 /* ---------- SELECT PRODUCT ---------- */
-function selectForBatch(code, max){
+function selectForBatch(code,max){
   if(!batchId){ alert("Start batch first"); return; }
   batchProductCode.value=code;
   batchSets.value="";
@@ -262,10 +262,52 @@ function addProductToBatch(){
   .then(j=>{
     if(j.status!=="success"){ alert(j.message); return; }
 
-    alert("Added to batch");
     batchProductCode.value="";
     batchSets.value="";
+
+    loadBatchItems();
     loadProducts();
+  });
+}
+
+/* ---------- LOAD BATCH ITEMS ---------- */
+function loadBatchItems(){
+  if(!batchId){
+    batchItems.innerHTML="No active batch";
+    return;
+  }
+
+  fetch(`${API}?action=getBatchItems&batchId=${batchId}`)
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success"){
+        batchItems.innerHTML="Failed to load batch items";
+        return;
+      }
+      renderBatchItems(j.data||[]);
+    });
+}
+
+/* ---------- RENDER BATCH ITEMS ---------- */
+function renderBatchItems(items){
+  if(!items.length){
+    batchItems.innerHTML="No products added yet";
+    return;
+  }
+
+  batchItems.innerHTML="";
+  items.forEach(p=>{
+    batchItems.innerHTML+=`
+      <div class="product">
+        <div style="flex:1">
+          <b>${p.productCode}</b>
+          <small>${p.productName}</small>
+          <small>Sets in batch: ${p.sets}</small>
+          <small>Available in batch: ${p.availableSets}</small>
+          <small>₹${p.pricePerPC}</small>
+        </div>
+      </div>
+    `;
   });
 }
 
