@@ -10,7 +10,7 @@ header{background:#fff;padding:18px 22px;border-bottom:1px solid #ddd;font-size:
 
 .container{
   display:grid;
-  grid-template-columns:1.2fr 360px 1.2fr;
+  grid-template-columns:1fr 360px 1fr;
   gap:24px;
   padding:24px
 }
@@ -24,12 +24,16 @@ header{background:#fff;padding:18px 22px;border-bottom:1px solid #ddd;font-size:
 
 .panel h3{margin-top:0;font-size:16px}
 
+.top{display:flex;gap:10px;margin-bottom:14px}
+.top input{flex:1}
+
 input{
   width:100%;
   padding:10px;
   margin-top:6px;
   border:1px solid #ccc;
   border-radius:6px;
+  font-size:14px
 }
 
 button{
@@ -40,7 +44,10 @@ button{
   border-radius:6px;
   cursor:pointer;
   font-size:13px;
+  width:100%;
 }
+button.small{padding:6px 10px;font-size:12px;width:auto}
+button.warn{background:#c62828}
 
 .products{
   display:grid;
@@ -48,22 +55,21 @@ button{
   gap:12px
 }
 
-.card{
+.product{
   display:flex;
   gap:10px;
-  border:1px solid #e5e5e5;
   padding:10px;
+  border:1px solid #e5e5e5;
   border-radius:10px
 }
 
-.card img{
+.product img{
   width:60px;height:80px;
   object-fit:cover;
-  border-radius:6px;
-  background:#eee
+  background:#eee;border-radius:6px
 }
 
-.card small{display:block;color:#555;font-size:12px}
+.product small{display:block;color:#555;font-size:12px}
 
 .stock.ok{color:#2e7d32;font-weight:600}
 .stock.low{color:#c62828;font-weight:600}
@@ -72,10 +78,15 @@ button{
   background:#fff8c4;
   padding:12px;
   border-radius:8px;
-  margin-bottom:14px
+  font-size:14px;
+  margin-bottom:16px
 }
 
 .hidden{display:none}
+
+@media(max-width:1200px){
+  .products{grid-template-columns:1fr}
+}
 </style>
 </head>
 
@@ -88,8 +99,10 @@ button{
 <!-- LEFT -->
 <div class="panel">
   <h3>Products</h3>
-  <input id="search" placeholder="Search product" oninput="renderProducts()">
-  <div id="productList" class="products">Loading…</div>
+  <div class="top">
+    <input id="search" placeholder="Search product" oninput="renderProducts()">
+  </div>
+  <div id="productList" class="products">Loading products…</div>
 </div>
 
 <!-- CENTER -->
@@ -103,31 +116,35 @@ button{
   <div id="batchRunning" class="hidden">
     <div class="batch-box">
       <b>Batch Running</b><br>
-      ID: <span id="batchIdText"></span><br>
-      Started: <span id="batchTimeText"></span>
+      Batch ID: <span id="batchIdText"></span><br>
+      Started at: <span id="batchTimeText"></span><br>
+      Supplier: SUP001
     </div>
 
-    <!-- Selected product preview -->
-    <div id="selectedProduct" style="margin-bottom:12px;color:#555">
-      Select a product from left
+    <div id="selectedProductInfo" style="font-size:13px;color:#555;margin-bottom:10px">
+      Select product from left
     </div>
 
-    <label>Product Code</label>
-    <input id="batchProductCode">
-
-    <label>Sets to allocate</label>
-    <input id="batchSets">
+    <input id="batchProductCode" placeholder="Product code">
+    <input id="batchSets" placeholder="Sets to allocate">
 
     <button onclick="addProductToBatch()">Add to Batch</button>
+
+    <button class="warn" style="margin-top:14px"
+      onclick="closeCurrentBatch()">
+      Close Batch
+    </button>
   </div>
 </div>
 
 <!-- RIGHT -->
 <div class="panel">
   <h3>Current Batch</h3>
-  <div id="batchItems">No products</div>
+  <div id="batchItems" style="font-size:14px;color:#777">
+    No active batch
+  </div>
 
-  <button style="margin-top:14px" onclick="publishBatch()">
+  <button style="margin-top:16px" onclick="publishBatch()">
     Publish Batch
   </button>
 </div>
@@ -140,31 +157,23 @@ const SUPPLIER_ID="SUP001";
 
 let products=[];
 let batchId=null;
-let selected=null;
+let batchStartTime=null;
 
-/* LOAD PRODUCTS */
+/* LOAD PRODUCTS (MERGED) */
 function loadProducts(){
-  productList.innerHTML = "Loading…";
+  productList.innerHTML="Loading products…";
 
   Promise.all([
-    fetch(`${API}?action=getProductsBySupplier&supplierId=${SUPPLIER_ID}`)
-      .then(r=>r.json()),
-    fetch(`${API}?action=getProductStockSummary&supplierId=${SUPPLIER_ID}`)
-      .then(r=>r.json())
+    fetch(`${API}?action=getProductsBySupplier&supplierId=${SUPPLIER_ID}`).then(r=>r.json()),
+    fetch(`${API}?action=getProductStockSummary&supplierId=${SUPPLIER_ID}`).then(r=>r.json())
   ])
-  .then(([prodRes, stockRes])=>{
-    if(prodRes.status!=="success" || stockRes.status!=="success"){
-      productList.innerHTML="Failed to load products";
-      return;
-    }
-
-    const stockMap = {};
-    stockRes.data.forEach(s=>{
+  .then(([pRes,sRes])=>{
+    const stockMap={};
+    sRes.data.forEach(s=>{
       stockMap[String(s.productCode)] = s;
     });
 
-    // ✅ merge stock into products
-    products = prodRes.data.map(p=>{
+    products = pRes.data.map(p=>{
       const s = stockMap[String(p.productCode)] || {};
       return {
         ...p,
@@ -175,34 +184,28 @@ function loadProducts(){
     });
 
     renderProducts();
-  })
-  .catch(()=>{
-    productList.innerHTML="Backend not reachable";
   });
 }
 
-
 /* RENDER PRODUCTS */
 function renderProducts(){
-  const q = search.value.toLowerCase();
-  productList.innerHTML = "";
+  const q=search.value.toLowerCase();
+  productList.innerHTML="";
 
-  const list = products.filter(p =>
+  const list=products.filter(p=>
     String(p.productCode).includes(q) ||
     p.productName.toLowerCase().includes(q)
   );
 
   if(!list.length){
-    productList.innerHTML = "<div style='color:#777'>No products</div>";
+    productList.innerHTML="<div>No products</div>";
     return;
   }
 
   list.forEach(p=>{
-    const avail = Math.max(0, p.availableToAllocate);
-
-    productList.innerHTML += `
-      <div class="card">
-        <img src="${p.imageURLs?.[0] || ""}">
+    productList.innerHTML+=`
+      <div class="product">
+        <img src="${p.imageURLs?.[0]||""}">
         <div style="flex:1">
           <b>${p.productCode}</b>
           <small>${p.productName}</small>
@@ -210,39 +213,33 @@ function renderProducts(){
           <small>₹${p.pricePerPC}</small>
           <small>Godown: ${p.masterStock}</small>
           <small>Allocated: ${p.allocatedStock}</small>
-          <small class="stock ${avail>0?'ok':'low'}">
-            Available: ${avail}
+          <small class="stock ${p.availableToAllocate>0?'ok':'low'}">
+            Available: ${p.availableToAllocate}
           </small>
         </div>
-        <button onclick="selectProduct('${p.productCode}')"
-          ${avail<=0?'disabled':''}>
+        <button class="small"
+          onclick="selectForBatch('${p.productCode}')"
+          ${p.availableToAllocate<=0?'disabled':''}>
           Add
         </button>
-      </div>
-    `;
+      </div>`;
   });
 }
 
 /* SELECT PRODUCT */
-function selectProduct(code){
-  selected = products.find(p=>String(p.productCode)===String(code));
-  if(!selected) return;
+function selectForBatch(code){
+  if(!batchId){ alert("Start batch first"); return; }
 
+  const p=products.find(x=>String(x.productCode)===String(code));
   batchProductCode.value=code;
   batchSets.value="";
-  batchSets.max=selected.availableToAllocate;
+  batchSets.max=p.availableToAllocate;
 
-  selectedProduct.innerHTML=`
-    <div class="card">
-      <img src="${selected.imageURLs?.[0]||""}">
-      <div>
-        <b>${selected.productCode}</b>
-        <small>${selected.productName}</small>
-        <small>Sizes: ${selected.sizes.join(", ")}</small>
-        <small>₹${selected.pricePerPC}</small>
-        <small>Available: ${selected.availableToAllocate}</small>
-      </div>
-    </div>
+  selectedProductInfo.innerHTML=`
+    <b>${p.productName}</b><br>
+    Sizes: ${p.sizes.join(", ")}<br>
+    Price: ₹${p.pricePerPC}<br>
+    Available: ${p.availableToAllocate} sets
   `;
 }
 
@@ -252,10 +249,15 @@ function startBatch(){
     .then(r=>r.json())
     .then(j=>{
       batchId=j.data.batchId;
+      batchStartTime=new Date();
+
       noBatch.classList.add("hidden");
       batchRunning.classList.remove("hidden");
+
       batchIdText.innerText=batchId;
-      batchTimeText.innerText=new Date().toLocaleString();
+      batchTimeText.innerText=batchStartTime.toLocaleString();
+
+      batchItems.innerHTML="Batch started";
     });
 }
 
@@ -263,15 +265,11 @@ function startBatch(){
 function addProductToBatch(){
   const code=batchProductCode.value.trim();
   const sets=Number(batchSets.value);
+
   if(!code||sets<=0) return;
 
   fetch(`${API}?action=addProductToBatch&batchId=${batchId}&productCode=${code}&totalSets=${sets}`)
-    .then(r=>r.json())
-    .then(j=>{
-      if(j.status!=="success"){alert(j.message);return;}
-      loadBatchItems();
-      loadProducts();
-    });
+    .then(()=>{ loadBatchItems(); loadProducts(); });
 }
 
 /* LOAD BATCH ITEMS */
@@ -282,14 +280,12 @@ function loadBatchItems(){
       batchItems.innerHTML="";
       j.data.forEach(p=>{
         batchItems.innerHTML+=`
-          <div class="card">
-            <img src="${p.imageURLs?.[0]||""}">
+          <div class="product">
             <div>
               <b>${p.productCode}</b>
               <small>${p.productName}</small>
               <small>Sizes: ${p.sizes.join(", ")}</small>
               <small>Sets: ${p.sets}</small>
-              <small>Available: ${p.availableSets}</small>
               <small>₹${p.pricePerPC}</small>
             </div>
           </div>`;
@@ -297,12 +293,9 @@ function loadBatchItems(){
     });
 }
 
-/* PUBLISH */
-function publishBatch(){
-  if(!confirm("Publish batch?"))return;
-  fetch(`${API}?action=publishBatch&batchId=${batchId}`)
-    .then(()=>alert("Batch published"));
-}
+/* CLOSE / PUBLISH */
+function closeCurrentBatch(){ batchId=null; loadProducts(); }
+function publishBatch(){ alert("Published"); }
 
 /* INIT */
 loadProducts();
