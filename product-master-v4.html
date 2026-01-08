@@ -63,8 +63,13 @@ button{
 .stock.ok{color:#2e7d32}
 .stock.low{color:#c62828}
 
-.edit-box{display:none;margin-top:10px}
-.edit-actions{margin-top:8px}
+.edit-box{
+  display:none;
+  margin-top:10px;
+  border-top:1px dashed #ddd;
+  padding-top:10px
+}
+.edit-actions{margin-top:8px;display:flex;gap:6px}
 </style>
 </head>
 
@@ -111,24 +116,30 @@ button{
 <script>
 const API="https://script.google.com/macros/s/AKfycbyBWZeeZbMCpSaOcXeGzXc1o3HMGfko8n2YI4Veu2Ru2CQtyOKN6JNmJMt6ueqBrxxo/exec";
 const SUPPLIER_ID="SUP001";
+
 let products=[];
 
-/* LOAD PRODUCTS */
+/* ---------- HELPERS ---------- */
+function getStock(p){
+  return Number(p.MASTER_STOCK ?? p.masterStock ?? 0);
+}
+
+/* ---------- LOAD PRODUCTS ---------- */
 function loadProducts(){
   fetch(`${API}?action=getProductsBySupplier&supplierId=${SUPPLIER_ID}`)
     .then(r=>r.json())
     .then(j=>{
-      products = j.data || [];
+      products=j.data||[];
       render();
     });
 }
 
-/* RENDER */
+/* ---------- RENDER ---------- */
 function render(){
-  const q = search.value.toLowerCase();
-  const sortVal = sort.value;
+  const q=search.value.toLowerCase();
+  const sortVal=sort.value;
 
-  let listData = products.filter(p =>
+  let listData=products.filter(p=>
     String(p.productCode).toLowerCase().includes(q) ||
     String(p.productName).toLowerCase().includes(q)
   );
@@ -153,7 +164,7 @@ function render(){
   }
 
   listData.forEach(p=>{
-    const stock = getStock(p);
+    const stock=getStock(p);
     list.innerHTML+=`
       <div class="product">
         <img src="${p.imageURLs?.[0]||""}">
@@ -162,6 +173,7 @@ function render(){
           <small>${p.productName}</small>
           <small>Sizes: ${p.sizes.join(", ")}</small>
           <small>₹${p.pricePerPC}</small>
+
           <div class="stock ${stock>0?'ok':'low'}">
             Godown Stock: ${stock} sets
           </div>
@@ -179,19 +191,17 @@ function render(){
             <input id="eStock-${p.productCode}" value="${stock}">
             <input id="eImages-${p.productCode}" value="${(p.imageURLs||[]).join(",")}">
 
-            <button onclick="saveEdit('${p.productCode}')">Save</button>
-            <button onclick="closeEdit('${p.productCode}')">Cancel</button>
+            <div class="edit-actions">
+              <button onclick="saveEdit('${p.productCode}')">Save</button>
+              <button onclick="closeEdit('${p.productCode}')">Cancel</button>
+            </div>
           </div>
         </div>
       </div>`;
   });
 }
 
-/* HELPERS */
-function getStock(p){
-  return Number(p.MASTER_STOCK ?? p.masterStock ?? 0);
-}
-
+/* ---------- EDIT FLOW ---------- */
 function openEdit(code){
   document.getElementById(`edit-${code}`).style.display="block";
 }
@@ -199,24 +209,56 @@ function closeEdit(code){
   document.getElementById(`edit-${code}`).style.display="none";
 }
 
-/* SAVE EDIT (frontend wired, backend next step) */
 function saveEdit(code){
-  alert("Frontend wired. Next step: backend updateProduct API.");
+  const name=document.getElementById(`eName-${code}`).value;
+  const desc=document.getElementById(`eDesc-${code}`).value;
+  const sizes=document.getElementById(`eSizes-${code}`).value;
+  const price=document.getElementById(`ePrice-${code}`).value;
+  const gst=document.getElementById(`eGST-${code}`).value;
+  const stock=document.getElementById(`eStock-${code}`).value;
+  const images=document.getElementById(`eImages-${code}`).value;
+
+  fetch(`${API}?action=updateProduct`
+    +`&productCode=${encodeURIComponent(code)}`
+    +`&productName=${encodeURIComponent(name)}`
+    +`&description=${encodeURIComponent(desc)}`
+    +`&sizesJSON=${encodeURIComponent(JSON.stringify(sizes.split(",").map(s=>s.trim())))}`
+    +`&pricePerPC=${price}`
+    +`&gstPercent=${gst}`
+    +`&imageURLsJSON=${encodeURIComponent(JSON.stringify(images.split(",").map(i=>i.trim())))}`
+    +`&masterStock=${stock}`
+  )
+  .then(r=>r.json())
+  .then(j=>{
+    if(j.status!=="success"){alert(j.message);return;}
+    loadProducts();
+  });
 }
 
-/* ADD PRODUCT */
+/* ---------- ADD PRODUCT ---------- */
 function addProduct(){
+  if(!pCode.value||!pName.value||!pStock.value){
+    alert("Product Code, Name & Master Stock required");
+    return;
+  }
+
   fetch(`${API}?action=addProduct`
     +`&supplierId=${SUPPLIER_ID}`
-    +`&productCode=${pCode.value}`
-    +`&productName=${pName.value}`
-    +`&description=${pDesc.value}`
-    +`&sizesJSON=${JSON.stringify(pSizes.value.split(",").map(s=>s.trim()))}`
+    +`&productCode=${encodeURIComponent(pCode.value)}`
+    +`&productName=${encodeURIComponent(pName.value)}`
+    +`&description=${encodeURIComponent(pDesc.value)}`
+    +`&sizesJSON=${encodeURIComponent(JSON.stringify(pSizes.value.split(",").map(s=>s.trim())))}`
     +`&pricePerPC=${pPrice.value}`
     +`&gstPercent=${pGST.value}`
-    +`&imageURLsJSON=${JSON.stringify(pImages.value.split(",").map(i=>i.trim()))}`
+    +`&imageURLsJSON=${encodeURIComponent(JSON.stringify(pImages.value.split(",").map(i=>i.trim())))}`
     +`&masterStock=${pStock.value}`
-  ).then(()=>{ loadProducts(); });
+  )
+  .then(r=>r.json())
+  .then(()=>{ clearForm(); loadProducts(); });
+}
+
+function clearForm(){
+  pCode.value=pName.value=pDesc.value=pSizes.value=pPrice.value=pGST.value=pStock.value=pImages.value="";
 }
 
 /* INIT */
