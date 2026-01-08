@@ -5,150 +5,58 @@
 <title>Product Master</title>
 
 <style>
-body{
-  font-family: Arial, sans-serif;
-  background:#f4f5f7;
-  margin:0;
-}
-header{
-  background:#fff;
-  padding:18px 22px;
-  border-bottom:1px solid #ddd;
-  font-size:20px;
-  font-weight:600;
-}
+body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0}
+header{background:#fff;padding:18px 22px;border-bottom:1px solid #ddd;font-size:20px;font-weight:600}
 
-/* LAYOUT */
-.container{
-  display:flex;
-  gap:24px;
-  padding:24px;
-}
-.left{
-  width:340px;
-  background:#fff;
-  padding:18px;
-  border-radius:10px;
-  box-shadow:0 2px 10px rgba(0,0,0,.06);
-}
-.right{
-  flex:1;
-  background:#fff;
-  padding:18px;
-  border-radius:10px;
-  box-shadow:0 2px 10px rgba(0,0,0,.06);
-}
+.container{display:flex;gap:24px;padding:24px}
+.left{width:340px;background:#fff;padding:18px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+.right{flex:1;background:#fff;padding:18px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
 
-/* FORM */
 h3{margin-top:0}
-input, textarea, select{
-  width:100%;
-  padding:10px;
-  margin:8px 0 14px;
-  border:1px solid #ccc;
-  border-radius:6px;
-  font-size:14px;
+input,textarea,select{
+  width:100%;padding:10px;margin:8px 0 14px;
+  border:1px solid #ccc;border-radius:6px;font-size:14px
 }
 textarea{resize:vertical}
 button{
-  padding:12px;
-  background:#000;
-  color:#fff;
-  border:none;
-  border-radius:8px;
-  cursor:pointer;
-  width:100%;
-  font-size:14px;
+  padding:12px;background:#000;color:#fff;border:none;
+  border-radius:8px;cursor:pointer;width:100%;font-size:14px
 }
-button.secondary{
-  background:#555;
-  margin-top:8px;
-}
+button.secondary{background:#555;margin-top:8px}
 
-/* TOP BAR */
-.top{
-  display:flex;
-  gap:14px;
-  align-items:center;
-  margin-bottom:18px;
-}
-.top b{
-  font-size:16px;
-  white-space:nowrap;
-}
-.search{
-  flex:1;
-  padding:12px;
-  font-size:15px;
-}
-select{
-  width:220px;
-}
+.top{display:flex;gap:14px;align-items:center;margin-bottom:18px}
+.top b{font-size:16px;white-space:nowrap}
+.search{flex:1;padding:12px;font-size:15px}
+select{width:220px}
 
-/* PRODUCT GRID */
 .products-grid{
   display:grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap:16px;
+  grid-template-columns:repeat(2,1fr);
+  gap:16px
 }
 
-/* PRODUCT CARD */
 .product{
-  display:flex;
-  gap:16px;
-  padding:16px;
-  border:1px solid #e5e5e5;
-  border-radius:12px;
-  background:#fff;
+  display:flex;gap:16px;padding:16px;
+  border:1px solid #e5e5e5;border-radius:12px;background:#fff
 }
 .product img{
-  width:100px;
-  height:130px;
-  object-fit:cover;
-  border-radius:8px;
-  background:#eee;
+  width:100px;height:130px;object-fit:cover;
+  border-radius:8px;background:#eee
 }
-.info{
-  flex:1;
-}
-.info b{
-  font-size:15px;
-}
-.info small{
-  display:block;
-  margin-top:4px;
-  color:#555;
-  font-size:13px;
-}
-.stock{
-  font-weight:600;
-}
+.info{flex:1}
+.info b{font-size:15px}
+.info small{display:block;margin-top:4px;color:#555;font-size:13px}
+.stock{font-weight:600}
 .stock.ok{color:#2e7d32}
 .stock.low{color:#c62828}
 
-/* ACTIONS */
-.actions{
-  display:flex;
-  align-items:flex-start;
-}
-.actions button{
-  width:80px;
-  padding:8px;
-  font-size:13px;
-}
+.actions{display:flex;align-items:flex-start}
+.actions button{width:80px;padding:8px;font-size:13px}
 
-/* EMPTY */
-.empty{
-  color:#777;
-  padding:30px 0;
-  text-align:center;
-}
+.empty{color:#777;padding:30px 0;text-align:center}
 
-/* RESPONSIVE */
 @media(max-width:1100px){
-  .products-grid{
-    grid-template-columns:1fr;
-  }
+  .products-grid{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -159,7 +67,7 @@ select{
 
 <div class="container">
 
-  <!-- LEFT PANEL -->
+  <!-- LEFT -->
   <div class="left">
     <h3 id="formTitle">Add Product</h3>
 
@@ -177,7 +85,7 @@ select{
     </button>
   </div>
 
-  <!-- RIGHT PANEL -->
+  <!-- RIGHT -->
   <div class="right">
     <div class="top">
       <b>All Products</b>
@@ -190,7 +98,9 @@ select{
         <option value="nameAsc">Name: A → Z</option>
       </select>
 
-      <input id="search" class="search" placeholder="Search product code or name" oninput="render()">
+      <input id="search" class="search"
+             placeholder="Search product code or name"
+             oninput="render()">
     </div>
 
     <div id="list" class="products-grid">Loading products…</div>
@@ -206,16 +116,16 @@ let products=[];
 let editingProduct=null;
 
 /* SAFE STOCK */
-function getStock(p){
-  return Number(p.availableStock || 0);
-}
+function getStock(p){ return Number(p.availableStock||0); }
 
-/* SAVE PRODUCT */
+/* SAVE / UPDATE */
 function saveProduct(){
   if(!pCode.value || !pName.value){
     alert("Product Code & Name required");
     return;
   }
+
+  const action = editingProduct ? "updateProduct" : "addProduct";
 
   const params =
     `&supplierId=${encodeURIComponent(SUPPLIER_ID)}` +
@@ -227,7 +137,7 @@ function saveProduct(){
     +`&gstPercent=${encodeURIComponent(pGST.value)}`
     +`&imageURLsJSON=${encodeURIComponent(JSON.stringify(pImages.value.split(",").map(i=>i.trim())))}`;
 
-  fetch(`${API}?action=addProduct${params}`)
+  fetch(`${API}?action=${action}${params}`)
     .then(r=>r.json())
     .then(j=>{
       if(j.status!=="success"){alert(j.message);return;}
@@ -236,7 +146,7 @@ function saveProduct(){
     });
 }
 
-/* LOAD PRODUCTS */
+/* LOAD */
 function loadProducts(){
   fetch(`${API}?action=getProductsBySupplier&supplierId=${SUPPLIER_ID}&_=${Date.now()}`)
     .then(r=>r.json())
@@ -254,29 +164,26 @@ function render(){
   const q=search.value.toLowerCase();
   const s=sort.value;
 
-  let listData=products.filter(p =>
+  let data=products.filter(p =>
     String(p.productCode).toLowerCase().includes(q) ||
     String(p.productName).toLowerCase().includes(q)
   );
 
-  if(s==="priceAsc") listData.sort((a,b)=>a.pricePerPC-b.pricePerPC);
-  else if(s==="priceDesc") listData.sort((a,b)=>b.pricePerPC-a.pricePerPC);
-  else if(s==="nameAsc") listData.sort((a,b)=>a.productName.localeCompare(b.productName));
-  else if(s==="stockDesc") listData.sort((a,b)=>getStock(b)-getStock(a));
+  if(s==="priceAsc") data.sort((a,b)=>a.pricePerPC-b.pricePerPC);
+  else if(s==="priceDesc") data.sort((a,b)=>b.pricePerPC-a.pricePerPC);
+  else if(s==="nameAsc") data.sort((a,b)=>a.productName.localeCompare(b.productName));
+  else if(s==="stockDesc") data.sort((a,b)=>getStock(b)-getStock(a));
 
-  const el=document.getElementById("list");
-  el.innerHTML="";
+  list.innerHTML="";
 
-  if(!listData.length){
-    el.innerHTML="<div class='empty'>No products found</div>";
+  if(!data.length){
+    list.innerHTML="<div class='empty'>No products found</div>";
     return;
   }
 
-  listData.forEach(p=>{
+  data.forEach(p=>{
     const stock=getStock(p);
-    const stockClass=stock>0?"ok":"low";
-
-    el.innerHTML+=`
+    list.innerHTML+=`
       <div class="product">
         <img src="${p.imageURLs?.[0]||""}">
         <div class="info">
@@ -284,18 +191,36 @@ function render(){
           <small>${p.productName}</small>
           <small>Sizes: ${p.sizes.join(", ")}</small>
           <small>₹${p.pricePerPC}</small>
-          <small class="stock ${stockClass}">
+          <small class="stock ${stock>0?'ok':'low'}">
             Available: ${stock} sets
           </small>
         </div>
         <div class="actions">
-          <button disabled>Edit</button>
+          <button onclick='editProduct(${JSON.stringify(p)})'>Edit</button>
         </div>
       </div>`;
   });
 }
 
-/* RESET FORM */
+/* EDIT MODE */
+function editProduct(p){
+  editingProduct=p;
+
+  formTitle.innerText="Edit Product";
+  saveBtn.innerText="Update Product";
+  cancelBtn.style.display="block";
+
+  pCode.value=p.productCode;
+  pCode.disabled=true;
+  pName.value=p.productName;
+  pDesc.value=p.description;
+  pSizes.value=p.sizes.join(",");
+  pPrice.value=p.pricePerPC;
+  pGST.value=p.gstPercent;
+  pImages.value=(p.imageURLs||[]).join(",");
+}
+
+/* RESET */
 function resetForm(){
   editingProduct=null;
   formTitle.innerText="Add Product";
