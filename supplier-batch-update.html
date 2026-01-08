@@ -132,9 +132,14 @@ button.small{padding:6px 10px;font-size:12px;width:auto}
   <!-- RIGHT: CURRENT BATCH -->
   <div class="panel">
     <h3>Current Batch</h3>
-    <div style="color:#777;font-size:14px">
-      Batch products will appear here in Step 4
+
+    <div id="batchItems" style="color:#777;font-size:14px">
+      No products in batch
     </div>
+
+    <button style="margin-top:16px" onclick="publishBatch()">
+      Publish Batch
+    </button>
   </div>
 
 </div>
@@ -162,6 +167,8 @@ function startBatch(){
 
       batchIdText.innerText=batchId;
       batchTimeText.innerText=batchStartTime.toLocaleString();
+
+      loadBatchItems();
     });
 }
 
@@ -175,10 +182,7 @@ function addProductToBatch(){
   const code=batchProductCode.value.trim();
   const sets=Number(batchSets.value);
 
-  if(!code){
-    alert("Product code required");
-    return;
-  }
+  if(!code){ alert("Product code required"); return; }
   if(isNaN(sets) || sets<=0){
     alert("Enter valid number of sets");
     return;
@@ -191,14 +195,77 @@ function addProductToBatch(){
   )
   .then(r=>r.json())
   .then(j=>{
-    if(j.status!=="success"){
-      alert(j.message);
-      return;
-    }
+    if(j.status!=="success"){ alert(j.message); return; }
+
     alert("Product added to batch");
     batchProductCode.value="";
     batchSets.value="";
+    loadBatchItems();
   });
+}
+
+/* ---------------- LOAD BATCH ITEMS ---------------- */
+function loadBatchItems(){
+  if(!batchId) return;
+
+  fetch(`${API}?action=getBatchItems&batchId=${batchId}`)
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success") return;
+      renderBatchItems(j.data||[]);
+    });
+}
+
+/* ---------------- RENDER BATCH ITEMS ---------------- */
+function renderBatchItems(items){
+  if(!items.length){
+    batchItems.innerHTML="No products in batch";
+    return;
+  }
+
+  batchItems.innerHTML="";
+  items.forEach(p=>{
+    batchItems.innerHTML+=`
+      <div class="product">
+        <img src="${p.imageURLs?.[0]||""}">
+        <div style="flex:1">
+          <b>${p.productCode}</b>
+          <small>${p.productName}</small>
+          <small>Sizes: ${p.sizes.join(", ")}</small>
+          <small>Sets: ${p.sets}</small>
+          <small>₹${p.pricePerPC}</small>
+        </div>
+        <div>
+          <button class="small" disabled>Edit</button><br><br>
+          <button class="small" disabled>Delete</button>
+        </div>
+      </div>
+    `;
+  });
+}
+
+/* ---------------- PUBLISH BATCH ---------------- */
+function publishBatch(){
+  if(!batchId){
+    alert("No batch running");
+    return;
+  }
+
+  if(!confirm("Publish this batch to buyers?")) return;
+
+  fetch(`${API}?action=publishBatch&batchId=${batchId}`)
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success"){ alert(j.message); return; }
+
+      alert("Batch published successfully");
+
+      // RESET
+      batchId=null;
+      batchItems.innerHTML="No products in batch";
+      batchRunning.classList.add("hidden");
+      noBatch.classList.remove("hidden");
+    });
 }
 
 /* ---------------- LOAD PRODUCTS ---------------- */
