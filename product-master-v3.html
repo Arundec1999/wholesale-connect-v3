@@ -82,7 +82,7 @@ button.secondary{
   font-size:15px;
 }
 select{
-  width:200px;
+  width:220px;
 }
 
 /* PRODUCT GRID */
@@ -205,7 +205,12 @@ const SUPPLIER_ID="SUP001";
 let products=[];
 let editingProduct=null;
 
-/* SAVE / UPDATE */
+/* SAFE STOCK */
+function getStock(p){
+  return Number(p.availableStock || 0);
+}
+
+/* SAVE PRODUCT */
 function saveProduct(){
   if(!pCode.value || !pName.value){
     alert("Product Code & Name required");
@@ -222,9 +227,7 @@ function saveProduct(){
     +`&gstPercent=${encodeURIComponent(pGST.value)}`
     +`&imageURLsJSON=${encodeURIComponent(JSON.stringify(pImages.value.split(",").map(i=>i.trim())))}`;
 
-  const action = editingProduct ? "updateProduct" : "addProduct";
-
-  fetch(`${API}?action=${action}${params}`)
+  fetch(`${API}?action=addProduct${params}`)
     .then(r=>r.json())
     .then(j=>{
       if(j.status!=="success"){alert(j.message);return;}
@@ -233,30 +236,33 @@ function saveProduct(){
     });
 }
 
-/* LOAD */
+/* LOAD PRODUCTS */
 function loadProducts(){
-  fetch(`${API}?action=getProductsBySupplier&supplierId=${SUPPLIER_ID}&_ts=${Date.now()}`)
+  fetch(`${API}?action=getProductsBySupplier&supplierId=${SUPPLIER_ID}&_=${Date.now()}`)
     .then(r=>r.json())
     .then(j=>{
       products=j.data||[];
       render();
+    })
+    .catch(()=>{
+      list.innerHTML="<div class='empty'>Failed to load products</div>";
     });
 }
 
 /* RENDER */
 function render(){
   const q=search.value.toLowerCase();
-  const sort=sort.value;
+  const s=sort.value;
 
   let listData=products.filter(p =>
     String(p.productCode).toLowerCase().includes(q) ||
     String(p.productName).toLowerCase().includes(q)
   );
 
-  if(sort==="priceAsc") listData.sort((a,b)=>a.pricePerPC-b.pricePerPC);
-  else if(sort==="priceDesc") listData.sort((a,b)=>b.pricePerPC-a.pricePerPC);
-  else if(sort==="nameAsc") listData.sort((a,b)=>a.productName.localeCompare(b.productName));
-  else if(sort==="stockDesc") listData.sort((a,b)=>b.availableStock-a.availableStock);
+  if(s==="priceAsc") listData.sort((a,b)=>a.pricePerPC-b.pricePerPC);
+  else if(s==="priceDesc") listData.sort((a,b)=>b.pricePerPC-a.pricePerPC);
+  else if(s==="nameAsc") listData.sort((a,b)=>a.productName.localeCompare(b.productName));
+  else if(s==="stockDesc") listData.sort((a,b)=>getStock(b)-getStock(a));
 
   const el=document.getElementById("list");
   el.innerHTML="";
@@ -267,7 +273,9 @@ function render(){
   }
 
   listData.forEach(p=>{
-    const stockClass=p.availableStock>0?"ok":"low";
+    const stock=getStock(p);
+    const stockClass=stock>0?"ok":"low";
+
     el.innerHTML+=`
       <div class="product">
         <img src="${p.imageURLs?.[0]||""}">
@@ -277,34 +285,17 @@ function render(){
           <small>Sizes: ${p.sizes.join(", ")}</small>
           <small>₹${p.pricePerPC}</small>
           <small class="stock ${stockClass}">
-            Available: ${p.availableStock} sets
+            Available: ${stock} sets
           </small>
         </div>
         <div class="actions">
-          <button onclick='editProduct(${JSON.stringify(p)})'>Edit</button>
+          <button disabled>Edit</button>
         </div>
       </div>`;
   });
 }
 
-/* EDIT */
-function editProduct(p){
-  editingProduct=p;
-  formTitle.innerText="Edit Product";
-  saveBtn.innerText="Update Product";
-  cancelBtn.style.display="block";
-
-  pCode.value=p.productCode;
-  pCode.disabled=true;
-  pName.value=p.productName;
-  pDesc.value=p.description;
-  pSizes.value=p.sizes.join(",");
-  pPrice.value=p.pricePerPC;
-  pGST.value=p.gstPercent;
-  pImages.value=(p.imageURLs||[]).join(",");
-}
-
-/* RESET */
+/* RESET FORM */
 function resetForm(){
   editingProduct=null;
   formTitle.innerText="Add Product";
@@ -321,6 +312,7 @@ function resetForm(){
   pImages.value="";
 }
 
+/* INIT */
 loadProducts();
 </script>
 
