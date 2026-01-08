@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Supplier Dashboard</title>
+
+<style>
+body{font-family:Arial;background:#f4f4f4;margin:0}
+header{background:#fff;padding:12px;border-bottom:1px solid #ddd}
+.card{background:#fff;padding:14px;margin:14px;border-radius:6px}
+input,textarea{width:100%;margin-top:6px;padding:8px}
+button{margin-top:10px;padding:10px;background:#000;color:#fff;border:none;cursor:pointer}
+.basket{border:1px solid #ddd;padding:10px;margin-top:10px;border-radius:6px}
+.basket small{color:#555}
+.actions button{margin-right:6px}
+</style>
+</head>
+
+<body>
+
+<header><b>Supplier Dashboard</b></header>
+
+<!-- ADD PRODUCT -->
+<div class="card">
+<h4>Add Product</h4>
+<input id="pCode" placeholder="Product Code (internal)">
+<input id="pName" placeholder="Product Name">
+<textarea id="pDesc" placeholder="Description"></textarea>
+<input id="pSizes" placeholder="Sizes M,L,XL">
+<input id="pPrice" placeholder="Price per PC">
+<input id="pGST" placeholder="GST %">
+<input id="pImages" placeholder="Image URLs (comma separated)">
+<button onclick="addProduct()">Save Product</button>
+</div>
+
+<!-- STOCK UPDATE -->
+<div class="card">
+<h4>Stock Update</h4>
+<button onclick="startBatch()">Start Batch</button><br><br>
+<input id="sCode" placeholder="Product Code">
+<input id="sQty" placeholder="Sets">
+<button onclick="addToBatch()">Add Product</button><br><br>
+<button onclick="publish()">Publish Batch</button>
+</div>
+
+<!-- PENDING BASKETS -->
+<div class="card">
+<h4>Pending Baskets</h4>
+<div id="baskets">Loading baskets…</div>
+</div>
+
+<script>
+const API="https://script.google.com/macros/s/AKfycbzOutSpXzb0zfR5ZkJ1iq-1a1m4WImhpvn26M5oMxXzTb9J28o2rJWRG26IA2dEV3us/exec";
+const SUPPLIER_ID="SUP001";
+let batchId=null;
+
+/* ---------------- ADD PRODUCT ---------------- */
+function addProduct(){
+fetch(`${API}?action=addProduct`
+ + `&supplierId=${SUPPLIER_ID}`
+ + `&productCode=${pCode.value}`
+ + `&productName=${pName.value}`
+ + `&description=${encodeURIComponent(pDesc.value)}`
+ + `&sizesJSON=${encodeURIComponent(JSON.stringify(pSizes.value.split(",").map(s=>s.trim())))}`
+ + `&pricePerPC=${pPrice.value}`
+ + `&gstPercent=${pGST.value}`
+ + `&imageURLsJSON=${encodeURIComponent(JSON.stringify(pImages.value.split(",").map(i=>i.trim())))}`
+).then(()=>alert("Product added"));
+}
+
+/* ---------------- BATCH FLOW ---------------- */
+function startBatch(){
+fetch(`${API}?action=startBatch&supplierId=${SUPPLIER_ID}`)
+.then(r=>r.json())
+.then(j=>{
+  batchId=j.data.batchId;
+  alert("Batch started");
+});
+}
+
+function addToBatch(){
+if(!batchId){ alert("Start batch first"); return; }
+fetch(`${API}?action=addProductToBatch&batchId=${batchId}&productCode=${sCode.value}&totalSets=${sQty.value}`)
+.then(()=>alert("Product added to batch"));
+}
+
+function publish(){
+if(!batchId){ alert("No active batch"); return; }
+fetch(`${API}?action=publishBatch&batchId=${batchId}`)
+.then(()=>{
+  alert("Batch published");
+  batchId=null;
+  loadBaskets();
+});
+}
+
+/* ---------------- BASKETS ---------------- */
+function loadBaskets(){
+fetch(`${API}?action=getSupplierBaskets&supplierId=${SUPPLIER_ID}`)
+.then(r=>r.json())
+.then(j=>renderBaskets(j.data||[]));
+}
+
+function renderBaskets(list){
+const el=document.getElementById("baskets");
+el.innerHTML=list.length?"":"No pending baskets";
+
+list.forEach(b=>{
+let html=`<div class="basket">
+<b>Buyer:</b> ${b.buyerId}<br>`;
+b.items.forEach(i=>{
+  html+=`<small>${i.productCode} – ${i.sets} sets</small><br>`;
+});
+html+=`
+<div class="actions">
+<button onclick="approve('${b.basketId}')">Approve</button>
+<button onclick="pay('${b.basketId}')">Confirm Payment</button>
+</div></div>`;
+el.innerHTML+=html;
+});
+}
+
+function approve(id){
+fetch(`${API}?action=approveBasket&basketId=${id}`)
+.then(()=>{ alert("Basket approved"); loadBaskets(); });
+}
+
+function pay(id){
+fetch(`${API}?action=confirmPayment&basketId=${id}`)
+.then(()=>{ alert("Payment confirmed"); loadBaskets(); });
+}
+
+/* Load baskets on page load */
+loadBaskets();
+</script>
+
+</body>
+</html>
