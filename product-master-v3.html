@@ -118,10 +118,10 @@ function render(){
   const el = document.getElementById("list");
   el.innerHTML="";
 
-  const f = products.filter(p =>
-    p.productCode.toLowerCase().includes(q) ||
-    p.productName.toLowerCase().includes(q)
-  );
+const f = products.filter(p =>
+  String(p.productCode).toLowerCase().includes(q) ||
+  String(p.productName).toLowerCase().includes(q)
+);
 
   if(!f.length){
     el.innerHTML="<div class='empty'>No products</div>";
@@ -133,7 +133,7 @@ function render(){
       <div class="product">
         <img src="${(p.imageURLs && p.imageURLs[0]) || ""}">
         <div>
-          <b>${p.productCode}</b><br>
+          <b>${String(p.productCode)}</b><br>
           <small>${p.productName}</small><br>
           <small>Sizes: ${p.sizes.join(", ")}</small><br>
           <small>₹${p.pricePerPC}</small>
