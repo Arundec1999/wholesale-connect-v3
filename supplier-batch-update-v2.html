@@ -60,12 +60,8 @@ button.warn{background:#c62828}
   border:1px solid #e5e5e5;
   border-radius:10px
 }
-.product img{
-  width:60px;height:80px;
-  object-fit:cover;
-  background:#eee;border-radius:6px
-}
 .product small{display:block;color:#555;font-size:12px}
+
 .stock.ok{color:#2e7d32;font-weight:600}
 .stock.low{color:#c62828;font-weight:600}
 
@@ -91,62 +87,61 @@ button.warn{background:#c62828}
 
 <div class="container">
 
-  <!-- LEFT: ALL PRODUCTS -->
-  <div class="panel">
-    <h3>All Products</h3>
+<!-- LEFT: PRODUCTS -->
+<div class="panel">
+  <h3>Products (Godown vs Allocated)</h3>
 
-    <div class="top">
-      <input id="search" placeholder="Search product code or name" oninput="renderProducts()">
-    </div>
-
-    <div id="productList" class="products">Loading products…</div>
+  <div class="top">
+    <input id="search" placeholder="Search product" oninput="renderProducts()">
   </div>
 
-  <!-- CENTER: STOCK UPDATE -->
-  <div class="panel">
-    <h3>Stock Update</h3>
+  <div id="productList" class="products">Loading products…</div>
+</div>
 
-    <!-- NO BATCH -->
-    <div id="noBatch">
-      <button onclick="startBatch()">Start Batch</button>
-    </div>
+<!-- CENTER: BATCH CONTROL -->
+<div class="panel">
+  <h3>Batch Control</h3>
 
-    <!-- BATCH RUNNING -->
-    <div id="batchRunning" class="hidden">
-      <div class="batch-box">
-        <b>Batch Running</b><br>
-        Batch ID: <span id="batchIdText"></span><br>
-        Started at: <span id="batchTimeText"></span><br>
-        Supplier: SUP001
-      </div>
-
-      <label>Product Code</label>
-      <input id="batchProductCode" placeholder="Product code">
-
-      <label>Total Sets</label>
-      <input id="batchSets" placeholder="Number of sets">
-
-      <button onclick="addProductToBatch()">Add Product to Batch</button>
-
-      <button class="warn" style="margin-top:12px"
-        onclick="closeCurrentBatch()">
-        Close Batch & Return Unsold Stock
-      </button>
-    </div>
+  <!-- NO BATCH -->
+  <div id="noBatch">
+    <button onclick="startBatch()">Start Batch</button>
   </div>
 
-  <!-- RIGHT: CURRENT BATCH -->
-  <div class="panel">
-    <h3>Current Batch</h3>
-
-    <div id="batchItems" style="color:#777;font-size:14px">
-      No products in batch
+  <!-- BATCH RUNNING -->
+  <div id="batchRunning" class="hidden">
+    <div class="batch-box">
+      <b>Batch Running</b><br>
+      Batch ID: <span id="batchIdText"></span><br>
+      Started at: <span id="batchTimeText"></span><br>
+      Supplier: SUP001
     </div>
 
-    <button style="margin-top:16px" onclick="publishBatch()">
-      Publish Batch
+    <label>Product Code</label>
+    <input id="batchProductCode" placeholder="Select from left">
+
+    <label>Sets to allocate</label>
+    <input id="batchSets" placeholder="Number of sets">
+
+    <button onclick="addProductToBatch()">Add to Batch</button>
+
+    <button class="warn" style="margin-top:14px"
+      onclick="closeCurrentBatch()">
+      Close Batch & Return Unsold Stock
     </button>
   </div>
+</div>
+
+<!-- RIGHT: INFO -->
+<div class="panel">
+  <h3>Batch Info</h3>
+  <div id="batchItems" style="font-size:14px;color:#777">
+    Start a batch to begin allocating stock.
+  </div>
+
+  <button style="margin-top:16px" onclick="publishBatch()">
+    Publish Batch
+  </button>
+</div>
 
 </div>
 
@@ -158,86 +153,27 @@ let products=[];
 let batchId=null;
 let batchStartTime=null;
 
-/* ---------------- START BATCH ---------------- */
-function startBatch(){
-  fetch(`${API}?action=startBatch&supplierId=${SUPPLIER_ID}`)
-    .then(r=>r.json())
-    .then(j=>{
-      if(j.status!=="success"){alert(j.message);return;}
-
-      batchId=j.data.batchId;
-      batchStartTime=new Date();
-
-      noBatch.classList.add("hidden");
-      batchRunning.classList.remove("hidden");
-
-      batchIdText.innerText=batchId;
-      batchTimeText.innerText=batchStartTime.toLocaleString();
-
-      loadBatchItems();
-    });
-}
-
-/* ---------------- ADD PRODUCT TO BATCH ---------------- */
-function addProductToBatch(){
-  if(!batchId){ alert("Start batch first"); return; }
-
-  const code=batchProductCode.value.trim();
-  const sets=Number(batchSets.value);
-
-  if(!code || isNaN(sets) || sets<=0){
-    alert("Valid product & sets required"); return;
-  }
-
-  fetch(`${API}?action=addProductToBatch`
-    +`&batchId=${encodeURIComponent(batchId)}`
-    +`&productCode=${encodeURIComponent(code)}`
-    +`&totalSets=${sets}`
-  )
-  .then(r=>r.json())
-  .then(j=>{
-    if(j.status!=="success"){ alert(j.message); return; }
-    batchProductCode.value="";
-    batchSets.value="";
-    loadBatchItems();
-  });
-}
-
-/* ---------------- CLOSE BATCH ---------------- */
-function closeCurrentBatch(){
-  if(!batchId) return;
-
-  if(!confirm(
-    "Closing this batch will:\n\n• Remove it from buyers\n• Return UNSOLD stock to godown\n\nProceed?"
-  )) return;
-
-  fetch(`${API}?action=closeBatch&batchId=${batchId}`)
-    .then(r=>r.json())
-    .then(j=>{
-      if(j.status!=="success"){ alert(j.message); return; }
-
-      alert("Batch closed. Unsold stock returned to godown.");
-
-      // RESET UI
-      batchId=null;
-      batchItems.innerHTML="No products in batch";
-      batchRunning.classList.add("hidden");
-      noBatch.classList.remove("hidden");
-      loadProducts();
-    });
-}
-
-/* ---------------- LOAD PRODUCTS ---------------- */
+/* ---------- LOAD PRODUCTS ---------- */
 function loadProducts(){
+  productList.innerHTML="Loading products…";
+
   fetch(`${API}?action=getProductStockSummary&supplierId=${SUPPLIER_ID}`)
     .then(r=>r.json())
     .then(j=>{
+      if(j.status!=="success"){
+        productList.innerHTML="Failed to load products";
+        alert(j.message);
+        return;
+      }
       products=j.data||[];
       renderProducts();
+    })
+    .catch(()=>{
+      productList.innerHTML="Backend not reachable";
     });
 }
 
-/* ---------------- RENDER PRODUCTS ---------------- */
+/* ---------- RENDER PRODUCTS ---------- */
 function renderProducts(){
   const q=search.value.toLowerCase();
   const list=products.filter(p=>
@@ -252,6 +188,8 @@ function renderProducts(){
   }
 
   list.forEach(p=>{
+    const available=Math.max(0,p.availableToAllocate);
+
     productList.innerHTML+=`
       <div class="product">
         <div style="flex:1">
@@ -259,25 +197,119 @@ function renderProducts(){
           <small>${p.productName}</small>
           <small>Godown: ${p.masterStock}</small>
           <small>Allocated: ${p.allocatedStock}</small>
-          <small class="stock ${p.availableToAllocate>0?'ok':'low'}">
-            Available: ${p.availableToAllocate}
+          <small class="stock ${available>0?'ok':'low'}">
+            Available: ${available}
           </small>
         </div>
         <div>
           <button class="small"
-            onclick="selectForBatch('${p.productCode}')">
-            add
+            onclick="selectForBatch('${p.productCode}',${available})"
+            ${available<=0?'disabled':''}>
+            Add
           </button>
         </div>
       </div>`;
   });
 }
 
-/* ---------------- SELECT PRODUCT ---------------- */
-function selectForBatch(code){
+/* ---------- START BATCH ---------- */
+function startBatch(){
+  fetch(`${API}?action=startBatch&supplierId=${SUPPLIER_ID}`)
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success"){ alert(j.message); return; }
+
+      batchId=j.data.batchId;
+      batchStartTime=new Date();
+
+      noBatch.classList.add("hidden");
+      batchRunning.classList.remove("hidden");
+
+      batchIdText.innerText=batchId;
+      batchTimeText.innerText=batchStartTime.toLocaleString();
+
+      batchItems.innerHTML="Batch started. Add products from left.";
+    });
+}
+
+/* ---------- SELECT PRODUCT ---------- */
+function selectForBatch(code, max){
   if(!batchId){ alert("Start batch first"); return; }
   batchProductCode.value=code;
+  batchSets.value="";
+  batchSets.max=max;
   batchSets.focus();
 }
 
-/* ---------------- LO*
+/* ---------- ADD PRODUCT TO BATCH ---------- */
+function addProductToBatch(){
+  if(!batchId) return;
+
+  const code=batchProductCode.value.trim();
+  const sets=Number(batchSets.value);
+
+  if(!code || isNaN(sets) || sets<=0){
+    alert("Valid product & sets required");
+    return;
+  }
+
+  fetch(`${API}?action=addProductToBatch`
+    +`&batchId=${encodeURIComponent(batchId)}`
+    +`&productCode=${encodeURIComponent(code)}`
+    +`&totalSets=${sets}`
+  )
+  .then(r=>r.json())
+  .then(j=>{
+    if(j.status!=="success"){ alert(j.message); return; }
+
+    alert("Added to batch");
+    batchProductCode.value="";
+    batchSets.value="";
+    loadProducts();
+  });
+}
+
+/* ---------- CLOSE BATCH ---------- */
+function closeCurrentBatch(){
+  if(!batchId) return;
+
+  if(!confirm(
+    "Closing batch will:\n\n• Remove it from buyers\n• Return UNSOLD stock to godown\n\nProceed?"
+  )) return;
+
+  fetch(`${API}?action=closeBatch&batchId=${batchId}`)
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success"){ alert(j.message); return; }
+
+      alert("Batch closed. Unsold stock returned.");
+
+      batchId=null;
+      batchRunning.classList.add("hidden");
+      noBatch.classList.remove("hidden");
+      batchItems.innerHTML="Batch closed.";
+      loadProducts();
+    });
+}
+
+/* ---------- PUBLISH BATCH ---------- */
+function publishBatch(){
+  if(!batchId){ alert("No batch running"); return; }
+
+  if(!confirm("Publish this batch to buyers?")) return;
+
+  fetch(`${API}?action=publishBatch&batchId=${batchId}`)
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success"){ alert(j.message); return; }
+
+      alert("Batch published");
+    });
+}
+
+/* INIT */
+loadProducts();
+</script>
+
+</body>
+</html>
