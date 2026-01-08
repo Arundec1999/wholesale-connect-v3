@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Stock Updates to Customers</title>
+
+<style>
+body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0}
+header{background:#fff;padding:18px 22px;border-bottom:1px solid #ddd;font-size:20px;font-weight:600}
+
+.container{
+  display:grid;
+  grid-template-columns:1fr 360px 1fr;
+  gap:24px;
+  padding:24px
+}
+
+.panel{
+  background:#fff;
+  padding:18px;
+  border-radius:10px;
+  box-shadow:0 2px 10px rgba(0,0,0,.06)
+}
+.panel h3{margin-top:0;font-size:16px}
+
+.top{display:flex;gap:10px;margin-bottom:14px}
+.top input{flex:1}
+
+input{
+  width:100%;
+  padding:10px;
+  margin-top:6px;
+  border:1px solid #ccc;
+  border-radius:6px;
+  font-size:14px
+}
+
+button{
+  padding:10px;
+  background:#000;
+  color:#fff;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+  font-size:13px;
+  width:100%;
+}
+button.small{padding:6px 10px;font-size:12px;width:auto}
+button.warn{background:#c62828}
+
+.products{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:12px
+}
+.product{
+  display:flex;
+  gap:10px;
+  padding:10px;
+  border:1px solid #e5e5e5;
+  border-radius:10px
+}
+.product img{
+  width:60px;height:80px;
+  object-fit:cover;
+  background:#eee;border-radius:6px
+}
+.product small{display:block;color:#555;font-size:12px}
+.stock.ok{color:#2e7d32;font-weight:600}
+.stock.low{color:#c62828;font-weight:600}
+
+.batch-box{
+  background:#fff8c4;
+  padding:12px;
+  border-radius:8px;
+  font-size:14px;
+  margin-bottom:16px
+}
+
+.hidden{display:none}
+
+@media(max-width:1200px){
+  .products{grid-template-columns:1fr}
+}
+</style>
+</head>
+
+<body>
+
+<header>STOCK UPDATES TO CUSTOMERS</header>
+
+<div class="container">
+
+  <!-- LEFT: ALL PRODUCTS -->
+  <div class="panel">
+    <h3>All Products</h3>
+
+    <div class="top">
+      <input id="search" placeholder="Search product code or name" oninput="renderProducts()">
+    </div>
+
+    <div id="productList" class="products">Loading products…</div>
+  </div>
+
+  <!-- CENTER: STOCK UPDATE -->
+  <div class="panel">
+    <h3>Stock Update</h3>
+
+    <!-- NO BATCH -->
+    <div id="noBatch">
+      <button onclick="startBatch()">Start Batch</button>
+    </div>
+
+    <!-- BATCH RUNNING -->
+    <div id="batchRunning" class="hidden">
+      <div class="batch-box">
+        <b>Batch Running</b><br>
+        Batch ID: <span id="batchIdText"></span><br>
+        Started at: <span id="batchTimeText"></span><br>
+        Supplier: SUP001
+      </div>
+
+      <label>Product Code</label>
+      <input id="batchProductCode" placeholder="Product code">
+
+      <label>Total Sets</label>
+      <input id="batchSets" placeholder="Number of sets">
+
+      <button onclick="addProductToBatch()">Add Product to Batch</button>
+
+      <button class="warn" style="margin-top:12px"
+        onclick="closeCurrentBatch()">
+        Close Batch & Return Unsold Stock
+      </button>
+    </div>
+  </div>
+
+  <!-- RIGHT: CURRENT BATCH -->
+  <div class="panel">
+    <h3>Current Batch</h3>
+
+    <div id="batchItems" style="color:#777;font-size:14px">
+      No products in batch
+    </div>
+
+    <button style="margin-top:16px" onclick="publishBatch()">
+      Publish Batch
+    </button>
+  </div>
+
+</div>
+
+<script>
+const API="https://script.google.com/macros/s/AKfycbyBWZeeZbMCpSaOcXeGzXc1o3HMGfko8n2YI4Veu2Ru2CQtyOKN6JNmJMt6ueqBrxxo/exec";
+const SUPPLIER_ID="SUP001";
+
+let products=[];
+let batchId=null;
+let batchStartTime=null;
+
+/* ---------------- START BATCH ---------------- */
+function startBatch(){
+  fetch(`${API}?action=startBatch&supplierId=${SUPPLIER_ID}`)
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success"){alert(j.message);return;}
+
+      batchId=j.data.batchId;
+      batchStartTime=new Date();
+
+      noBatch.classList.add("hidden");
+      batchRunning.classList.remove("hidden");
+
+      batchIdText.innerText=batchId;
+      batchTimeText.innerText=batchStartTime.toLocaleString();
+
+      loadBatchItems();
+    });
+}
+
+/* ---------------- ADD PRODUCT TO BATCH ---------------- */
+function addProductToBatch(){
+  if(!batchId){ alert("Start batch first"); return; }
+
+  const code=batchProductCode.value.trim();
+  const sets=Number(batchSets.value);
+
+  if(!code || isNaN(sets) || sets<=0){
+    alert("Valid product & sets required"); return;
+  }
+
+  fetch(`${API}?action=addProductToBatch`
+    +`&batchId=${encodeURIComponent(batchId)}`
+    +`&productCode=${encodeURIComponent(code)}`
+    +`&totalSets=${sets}`
+  )
+  .then(r=>r.json())
+  .then(j=>{
+    if(j.status!=="success"){ alert(j.message); return; }
+    batchProductCode.value="";
+    batchSets.value="";
+    loadBatchItems();
+  });
+}
+
+/* ---------------- CLOSE BATCH ---------------- */
+function closeCurrentBatch(){
+  if(!batchId) return;
+
+  if(!confirm(
+    "Closing this batch will:\n\n• Remove it from buyers\n• Return UNSOLD stock to godown\n\nProceed?"
+  )) return;
+
+  fetch(`${API}?action=closeBatch&batchId=${batchId}`)
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success"){ alert(j.message); return; }
+
+      alert("Batch closed. Unsold stock returned to godown.");
+
+      // RESET UI
+      batchId=null;
+      batchItems.innerHTML="No products in batch";
+      batchRunning.classList.add("hidden");
+      noBatch.classList.remove("hidden");
+      loadProducts();
+    });
+}
+
+/* ---------------- LOAD PRODUCTS ---------------- */
+function loadProducts(){
+  fetch(`${API}?action=getProductStockSummary&supplierId=${SUPPLIER_ID}`)
+    .then(r=>r.json())
+    .then(j=>{
+      products=j.data||[];
+      renderProducts();
+    });
+}
+
+/* ---------------- RENDER PRODUCTS ---------------- */
+function renderProducts(){
+  const q=search.value.toLowerCase();
+  const list=products.filter(p=>
+    String(p.productCode).toLowerCase().includes(q) ||
+    String(p.productName).toLowerCase().includes(q)
+  );
+
+  productList.innerHTML="";
+  if(!list.length){
+    productList.innerHTML="<div style='color:#777'>No products</div>";
+    return;
+  }
+
+  list.forEach(p=>{
+    productList.innerHTML+=`
+      <div class="product">
+        <div style="flex:1">
+          <b>${p.productCode}</b>
+          <small>${p.productName}</small>
+          <small>Godown: ${p.masterStock}</small>
+          <small>Allocated: ${p.allocatedStock}</small>
+          <small class="stock ${p.availableToAllocate>0?'ok':'low'}">
+            Available: ${p.availableToAllocate}
+          </small>
+        </div>
+        <div>
+          <button class="small"
+            onclick="selectForBatch('${p.productCode}')">
+            add
+          </button>
+        </div>
+      </div>`;
+  });
+}
+
+/* ---------------- SELECT PRODUCT ---------------- */
+function selectForBatch(code){
+  if(!batchId){ alert("Start batch first"); return; }
+  batchProductCode.value=code;
+  batchSets.focus();
+}
+
+/* ---------------- LO*
