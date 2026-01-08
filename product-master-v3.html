@@ -5,21 +5,111 @@
 <title>Product Master</title>
 
 <style>
-body{font-family:Arial;background:#f5f5f5;margin:0}
-header{background:#fff;padding:14px;border-bottom:1px solid #ddd;font-size:18px;font-weight:bold}
-.container{display:flex;gap:20px;padding:16px}
-.left{width:340px;background:#fff;padding:16px;border-radius:8px}
-.right{flex:1;background:#fff;padding:16px;border-radius:8px}
-input,textarea{width:100%;padding:8px;margin:6px 0 12px;border:1px solid #ccc;border-radius:4px}
-button{padding:10px;background:#000;color:#fff;border:none;border-radius:4px;cursor:pointer;width:100%}
-.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.search{width:60%}
-.product{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #eee}
-.product img{width:60px;height:80px;object-fit:cover;background:#e0f7fa}
-small{color:#555}
-.edit{padding:6px 10px;background:#000;color:#fff;border:none;border-radius:4px}
-.empty{color:#777;margin-top:20px}
-.error{color:#b00020;margin-top:20px}
+body{
+  font-family:Arial;
+  background:#f5f6f8;
+  margin:0;
+}
+header{
+  background:#fff;
+  padding:16px 20px;
+  border-bottom:1px solid #ddd;
+  font-size:18px;
+  font-weight:bold;
+}
+.container{
+  display:flex;
+  gap:20px;
+  padding:20px;
+}
+.left{
+  width:340px;
+  background:#fff;
+  padding:16px;
+  border-radius:8px;
+  box-shadow:0 2px 8px rgba(0,0,0,.06);
+}
+.right{
+  flex:1;
+  background:#fff;
+  padding:16px;
+  border-radius:8px;
+  box-shadow:0 2px 8px rgba(0,0,0,.06);
+}
+h3{
+  margin-top:0;
+}
+input,textarea{
+  width:100%;
+  padding:8px;
+  margin:6px 0 12px;
+  border:1px solid #ccc;
+  border-radius:4px;
+}
+button{
+  padding:10px;
+  background:#000;
+  color:#fff;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+  width:100%;
+}
+button.secondary{
+  background:#555;
+  margin-top:6px;
+}
+.top{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:12px;
+}
+.search{
+  width:260px;
+  padding:8px;
+}
+
+/* PRODUCT CARD */
+.product{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:12px;
+  border:1px solid #eee;
+  border-radius:8px;
+  margin-bottom:10px;
+}
+.product img{
+  width:70px;
+  height:90px;
+  object-fit:cover;
+  border-radius:6px;
+  background:#eee;
+}
+.info{
+  flex:1;
+}
+.info b{
+  font-size:14px;
+}
+.info small{
+  color:#555;
+  display:block;
+  margin-top:2px;
+}
+.actions{
+  width:90px;
+}
+.actions button{
+  width:100%;
+  padding:8px;
+  font-size:13px;
+}
+.empty{
+  color:#777;
+  margin-top:20px;
+}
 </style>
 </head>
 
@@ -29,9 +119,9 @@ small{color:#555}
 
 <div class="container">
 
-  <!-- ADD PRODUCT -->
+  <!-- ADD / EDIT PRODUCT -->
   <div class="left">
-    <h3>Add Product</h3>
+    <h3 id="formTitle">Add Product</h3>
     <input id="pCode" placeholder="Product Code">
     <input id="pName" placeholder="Product Name">
     <textarea id="pDesc" placeholder="Description"></textarea>
@@ -39,13 +129,14 @@ small{color:#555}
     <input id="pPrice" placeholder="Price per PC">
     <input id="pGST" placeholder="GST %">
     <input id="pImages" placeholder="Image URLs (comma separated)">
-    <button onclick="addProduct()">Save Product</button>
+    <button onclick="saveProduct()" id="saveBtn">Save Product</button>
+    <button class="secondary" onclick="resetForm()" id="cancelBtn" style="display:none">Cancel Edit</button>
   </div>
 
   <!-- ALL PRODUCTS -->
   <div class="right">
     <div class="top">
-      <b>ALL Products</b>
+      <b>All Products</b>
       <input id="search" class="search" placeholder="Search" oninput="render()">
     </div>
     <div id="list">Loading products…</div>
@@ -56,10 +147,17 @@ small{color:#555}
 <script>
 const API="https://script.google.com/macros/s/AKfycbyBWZeeZbMCpSaOcXeGzXc1o3HMGfko8n2YI4Veu2Ru2CQtyOKN6JNmJMt6ueqBrxxo/exec";
 const SUPPLIER_ID="SUP001";
-let products=[];
 
-/* ADD PRODUCT */
-function addProduct(){
+let products=[];
+let editingProduct=null;
+
+/* SAVE / ADD */
+function saveProduct(){
+  if(editingProduct){
+    alert("Update backend will be added later.\nEdit loaded successfully for now.");
+    return;
+  }
+
   if(!pCode.value||!pName.value){
     alert("Code & Name required");
     return;
@@ -70,80 +168,89 @@ function addProduct(){
     +`&productCode=${encodeURIComponent(pCode.value)}`
     +`&productName=${encodeURIComponent(pName.value)}`
     +`&description=${encodeURIComponent(pDesc.value)}`
-    +`&sizesJSON=${encodeURIComponent(JSON.stringify(pSizes.value.split(",").map(s=>s.trim())))}`  
+    +`&sizesJSON=${encodeURIComponent(JSON.stringify(pSizes.value.split(",").map(s=>s.trim())))}`
     +`&pricePerPC=${encodeURIComponent(pPrice.value)}`
     +`&gstPercent=${encodeURIComponent(pGST.value)}`
     +`&imageURLsJSON=${encodeURIComponent(JSON.stringify(pImages.value.split(",").map(i=>i.trim())))}`
   )
   .then(r=>r.json())
   .then(j=>{
-    if(j.status!=="success"){
-      alert(j.message || "Error adding product");
-      return;
-    }
-    clearForm();
+    if(j.status!=="success"){alert(j.message);return;}
+    resetForm();
     loadProducts();
   });
 }
 
-function clearForm(){
-  pCode.value=pName.value=pDesc.value=pSizes.value=pPrice.value=pGST.value=pImages.value="";
-}
-
-/* LOAD ALL PRODUCTS (FIXED) */
+/* LOAD PRODUCTS */
 function loadProducts(){
-  document.getElementById("list").innerHTML="Loading products…";
-
-  fetch(`${API}?action=getProductsBySupplier&supplierId=${encodeURIComponent(SUPPLIER_ID)}&_ts=${Date.now()}`)
+  fetch(`${API}?action=getProductsBySupplier&supplierId=${SUPPLIER_ID}&_ts=${Date.now()}`)
     .then(r=>r.json())
     .then(j=>{
-      if(j.status!=="success"){
-        document.getElementById("list").innerHTML =
-          `<div class="error">${j.message || "Failed to load products"}</div>`;
-        return;
-      }
-      products = j.data || [];
+      products=j.data||[];
       render();
-    })
-    .catch(err=>{
-      console.error(err);
-      document.getElementById("list").innerHTML =
-        "<div class='error'>Network error</div>";
     });
 }
 
 /* RENDER */
 function render(){
-  const q = search.value.toLowerCase();
-  const el = document.getElementById("list");
-  el.innerHTML="";
+  const q=search.value.toLowerCase();
+  list.innerHTML="";
 
-const f = products.filter(p =>
-  String(p.productCode).toLowerCase().includes(q) ||
-  String(p.productName).toLowerCase().includes(q)
-);
+  const f=products.filter(p =>
+    String(p.productCode).toLowerCase().includes(q) ||
+    String(p.productName).toLowerCase().includes(q)
+  );
 
   if(!f.length){
-    el.innerHTML="<div class='empty'>No products</div>";
+    list.innerHTML="<div class='empty'>No products</div>";
     return;
   }
 
   f.forEach(p=>{
-    el.innerHTML+=`
+    list.innerHTML+=`
       <div class="product">
-        <img src="${(p.imageURLs && p.imageURLs[0]) || ""}">
-        <div>
-          <b>${String(p.productCode)}</b><br>
-          <small>${p.productName}</small><br>
-          <small>Sizes: ${p.sizes.join(", ")}</small><br>
+        <img src="${p.imageURLs?.[0] || ""}">
+        <div class="info">
+          <b>${p.productCode}</b>
+          <small>${p.productName}</small>
+          <small>Sizes: ${p.sizes.join(", ")}</small>
           <small>₹${p.pricePerPC}</small>
         </div>
-        <button class="edit" disabled>Edit</button>
-      </div>`;
+        <div class="actions">
+          <button onclick='editProduct(${JSON.stringify(p)})'>Edit</button>
+        </div>
+      </div>
+    `;
   });
 }
 
-/* INIT */
+/* EDIT (FRONTEND ONLY) */
+function editProduct(p){
+  editingProduct=p;
+  formTitle.innerText="Edit Product";
+  saveBtn.innerText="Update Product";
+  cancelBtn.style.display="block";
+
+  pCode.value=p.productCode;
+  pCode.disabled=true;
+  pName.value=p.productName;
+  pDesc.value=p.description;
+  pSizes.value=p.sizes.join(",");
+  pPrice.value=p.pricePerPC;
+  pGST.value=p.gstPercent;
+  pImages.value=(p.imageURLs||[]).join(",");
+}
+
+/* RESET */
+function resetForm(){
+  editingProduct=null;
+  formTitle.innerText="Add Product";
+  saveBtn.innerText="Save Product";
+  cancelBtn.style.display="none";
+  pCode.disabled=false;
+  pCode.value=pName.value=pDesc.value=pSizes.value=pPrice.value=pGST.value=pImages.value="";
+}
+
 loadProducts();
 </script>
 
