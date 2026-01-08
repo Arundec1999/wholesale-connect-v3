@@ -33,52 +33,20 @@ header{
   border-radius:10px;
   box-shadow:0 2px 10px rgba(0,0,0,.06);
 }
+.panel h3{margin-top:0;font-size:16px}
 
-.panel h3{
-  margin-top:0;
-  font-size:16px;
+/* TOP BAR */
+.top{
+  display:flex;
+  gap:10px;
+  margin-bottom:14px;
+}
+.top input{
+  flex:1;
 }
 
-/* PLACEHOLDERS */
-.placeholder{
-  color:#777;
-  font-size:14px;
-  margin-top:12px;
-}
-
-/* STOCK UPDATE CENTER */
-.batch-box{
-  background:#fff8c4;
-  padding:12px;
-  border-radius:8px;
-  font-size:14px;
-  margin-bottom:16px;
-}
-
-button{
-  width:100%;
-  padding:12px;
-  background:#000;
-  color:#fff;
-  border:none;
-  border-radius:8px;
-  cursor:pointer;
-  font-size:14px;
-}
-
-button.running{
-  background:#2e7d32;
-  cursor:default;
-}
-
-label{
-  font-size:13px;
-  font-weight:600;
-  display:block;
-  margin-top:14px;
-}
-
-input{
+/* FORM ELEMENTS */
+input, select{
   width:100%;
   padding:10px;
   margin-top:6px;
@@ -87,8 +55,61 @@ input{
   font-size:14px;
 }
 
-.hidden{
-  display:none;
+button{
+  padding:10px;
+  background:#000;
+  color:#fff;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+  font-size:13px;
+}
+button.small{
+  padding:6px 10px;
+  font-size:12px;
+}
+
+/* PRODUCT LIST */
+.products{
+  display:grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap:12px;
+}
+.product{
+  display:flex;
+  gap:10px;
+  padding:10px;
+  border:1px solid #e5e5e5;
+  border-radius:10px;
+}
+.product img{
+  width:60px;
+  height:80px;
+  object-fit:cover;
+  background:#eee;
+  border-radius:6px;
+}
+.product small{
+  display:block;
+  color:#555;
+  font-size:12px;
+}
+.stock.ok{color:#2e7d32;font-weight:600}
+.stock.low{color:#c62828;font-weight:600}
+
+/* CENTER */
+.batch-box{
+  background:#fff8c4;
+  padding:12px;
+  border-radius:8px;
+  font-size:14px;
+  margin-bottom:16px;
+}
+.hidden{display:none}
+
+/* RESPONSIVE */
+@media(max-width:1200px){
+  .products{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -99,12 +120,15 @@ input{
 
 <div class="container">
 
-  <!-- LEFT: ALL PRODUCTS (STEP 2) -->
+  <!-- LEFT: ALL PRODUCTS -->
   <div class="panel">
     <h3>All Products</h3>
-    <div class="placeholder">
-      Product list will appear here in Step 2
+
+    <div class="top">
+      <input id="search" placeholder="Search product code or name" oninput="renderProducts()">
     </div>
+
+    <div id="productList" class="products">Loading products…</div>
   </div>
 
   <!-- CENTER: STOCK UPDATE -->
@@ -126,19 +150,17 @@ input{
       </div>
 
       <label>Product Code</label>
-      <input placeholder="Product code" disabled>
+      <input id="batchProductCode" placeholder="Product code">
 
       <label>Total Sets</label>
-      <input placeholder="Number of sets" disabled>
-
-      <button class="running">Batch Running</button>
+      <input id="batchSets" placeholder="Number of sets">
     </div>
   </div>
 
-  <!-- RIGHT: CURRENT BATCH ITEMS (STEP 4) -->
+  <!-- RIGHT: CURRENT BATCH -->
   <div class="panel">
     <h3>Current Batch</h3>
-    <div class="placeholder">
+    <div style="color:#777;font-size:14px">
       Batch products will appear here in Step 4
     </div>
   </div>
@@ -146,33 +168,93 @@ input{
 </div>
 
 <script>
-const API = "https://script.google.com/macros/s/AKfycbyBWZeeZbMCpSaOcXeGzXc1o3HMGfko8n2YI4Veu2Ru2CQtyOKN6JNmJMt6ueqBrxxo/exec";
-const SUPPLIER_ID = "SUP001";
+const API="https://script.google.com/macros/s/AKfycbyBWZeeZbMCpSaOcXeGzXc1o3HMGfko8n2YI4Veu2Ru2CQtyOKN6JNmJMt6ueqBrxxo/exec";
+const SUPPLIER_ID="SUP001";
 
-let batchId = null;
-let batchStartTime = null;
+let products=[];
+let batchId=null;
+let batchStartTime=null;
 
-/* START BATCH */
+/* ---------------- BATCH ---------------- */
 function startBatch(){
   fetch(`${API}?action=startBatch&supplierId=${SUPPLIER_ID}`)
     .then(r=>r.json())
     .then(j=>{
-      if(j.status!=="success"){
-        alert(j.message || "Failed to start batch");
-        return;
-      }
+      if(j.status!=="success"){alert(j.message);return;}
 
-      batchId = j.data.batchId;
-      batchStartTime = new Date();
+      batchId=j.data.batchId;
+      batchStartTime=new Date();
 
-      document.getElementById("noBatch").classList.add("hidden");
-      document.getElementById("batchRunning").classList.remove("hidden");
+      noBatch.classList.add("hidden");
+      batchRunning.classList.remove("hidden");
 
-      document.getElementById("batchIdText").innerText = batchId;
-      document.getElementById("batchTimeText").innerText =
-        batchStartTime.toLocaleString();
+      batchIdText.innerText=batchId;
+      batchTimeText.innerText=batchStartTime.toLocaleString();
     });
 }
+
+/* ---------------- LOAD PRODUCTS ---------------- */
+function loadProducts(){
+  fetch(`${API}?action=getProductsBySupplier&supplierId=${SUPPLIER_ID}`)
+    .then(r=>r.json())
+    .then(j=>{
+      products=j.data||[];
+      renderProducts();
+    });
+}
+
+/* ---------------- RENDER PRODUCTS ---------------- */
+function renderProducts(){
+  const q=search.value.toLowerCase();
+  const list=products.filter(p=>
+    String(p.productCode).toLowerCase().includes(q) ||
+    String(p.productName).toLowerCase().includes(q)
+  );
+
+  productList.innerHTML="";
+  if(!list.length){
+    productList.innerHTML="<div style='color:#777'>No products</div>";
+    return;
+  }
+
+  list.forEach(p=>{
+    const stock=Number(p.availableStock||0);
+    const stockClass=stock>0?"ok":"low";
+
+    productList.innerHTML+=`
+      <div class="product">
+        <img src="${p.imageURLs?.[0]||""}">
+        <div style="flex:1">
+          <b>${p.productCode}</b>
+          <small>${p.productName}</small>
+          <small>Sizes: ${p.sizes.join(", ")}</small>
+          <small>₹${p.pricePerPC}</small>
+          <small class="stock ${stockClass}">
+            Available: ${stock} sets
+          </small>
+        </div>
+        <div>
+          <button class="small"
+            onclick="selectForBatch('${p.productCode}')">
+            add to<br>running batch
+          </button>
+        </div>
+      </div>`;
+  });
+}
+
+/* ---------------- SELECT PRODUCT ---------------- */
+function selectForBatch(code){
+  if(!batchId){
+    alert("Start batch first");
+    return;
+  }
+  batchProductCode.value=code;
+  batchSets.focus();
+}
+
+/* INIT */
+loadProducts();
 </script>
 
 </body>
