@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Stock Updates to Customers</title>
+
+<style>
+body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0}
+header{background:#fff;padding:18px 22px;border-bottom:1px solid #ddd;font-size:20px;font-weight:600}
+
+.container{
+  display:grid;
+  grid-template-columns:1.2fr 360px 1.2fr;
+  gap:24px;
+  padding:24px
+}
+
+.panel{
+  background:#fff;
+  padding:18px;
+  border-radius:10px;
+  box-shadow:0 2px 10px rgba(0,0,0,.06)
+}
+
+.panel h3{margin-top:0;font-size:16px}
+
+input{
+  width:100%;
+  padding:10px;
+  margin-top:6px;
+  border:1px solid #ccc;
+  border-radius:6px;
+}
+
+button{
+  padding:10px;
+  background:#000;
+  color:#fff;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+  font-size:13px;
+}
+
+.products{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:12px
+}
+
+.card{
+  display:flex;
+  gap:10px;
+  border:1px solid #e5e5e5;
+  padding:10px;
+  border-radius:10px
+}
+
+.card img{
+  width:60px;height:80px;
+  object-fit:cover;
+  border-radius:6px;
+  background:#eee
+}
+
+.card small{display:block;color:#555;font-size:12px}
+
+.stock.ok{color:#2e7d32;font-weight:600}
+.stock.low{color:#c62828;font-weight:600}
+
+.batch-box{
+  background:#fff8c4;
+  padding:12px;
+  border-radius:8px;
+  margin-bottom:14px
+}
+
+.hidden{display:none}
+</style>
+</head>
+
+<body>
+
+<header>STOCK UPDATES TO CUSTOMERS</header>
+
+<div class="container">
+
+<!-- LEFT -->
+<div class="panel">
+  <h3>Products</h3>
+  <input id="search" placeholder="Search product" oninput="renderProducts()">
+  <div id="productList" class="products">Loading…</div>
+</div>
+
+<!-- CENTER -->
+<div class="panel">
+  <h3>Batch Control</h3>
+
+  <div id="noBatch">
+    <button onclick="startBatch()">Start Batch</button>
+  </div>
+
+  <div id="batchRunning" class="hidden">
+    <div class="batch-box">
+      <b>Batch Running</b><br>
+      ID: <span id="batchIdText"></span><br>
+      Started: <span id="batchTimeText"></span>
+    </div>
+
+    <!-- Selected product preview -->
+    <div id="selectedProduct" style="margin-bottom:12px;color:#555">
+      Select a product from left
+    </div>
+
+    <label>Product Code</label>
+    <input id="batchProductCode">
+
+    <label>Sets to allocate</label>
+    <input id="batchSets">
+
+    <button onclick="addProductToBatch()">Add to Batch</button>
+  </div>
+</div>
+
+<!-- RIGHT -->
+<div class="panel">
+  <h3>Current Batch</h3>
+  <div id="batchItems">No products</div>
+
+  <button style="margin-top:14px" onclick="publishBatch()">
+    Publish Batch
+  </button>
+</div>
+
+</div>
+
+<script>
+const API="https://script.google.com/macros/s/AKfycbyBWZeeZbMCpSaOcXeGzXc1o3HMGfko8n2YI4Veu2Ru2CQtyOKN6JNmJMt6ueqBrxxo/exec";
+const SUPPLIER_ID="SUP001";
+
+let products=[];
+let batchId=null;
+let selected=null;
+
+/* LOAD PRODUCTS */
+function loadProducts(){
+  fetch(`${API}?action=getProductStockSummary&supplierId=${SUPPLIER_ID}`)
+    .then(r=>r.json())
+    .then(j=>{
+      products=j.data||[];
+      renderProducts();
+    });
+}
+
+/* RENDER PRODUCTS */
+function renderProducts(){
+  const q=search.value.toLowerCase();
+  productList.innerHTML="";
+
+  products.filter(p=>
+    String(p.productCode).includes(q) ||
+    p.productName.toLowerCase().includes(q)
+  ).forEach(p=>{
+    const avail=Math.max(0,p.availableToAllocate);
+
+    productList.innerHTML+=`
+      <div class="card">
+        <img src="${p.imageURLs?.[0]||""}">
+        <div style="flex:1">
+          <b>${p.productCode}</b>
+          <small>${p.productName}</small>
+          <small>Sizes: ${p.sizes.join(", ")}</small>
+          <small>₹${p.pricePerPC}</small>
+          <small>Godown: ${p.masterStock}</small>
+          <small>Allocated: ${p.allocatedStock}</small>
+          <small class="stock ${avail>0?'ok':'low'}">
+            Available: ${avail}
+          </small>
+        </div>
+        <button onclick="selectProduct('${p.productCode}')"
+          ${avail<=0?'disabled':''}>Add</button>
+      </div>`;
+  });
+}
+
+/* SELECT PRODUCT */
+function selectProduct(code){
+  selected = products.find(p=>String(p.productCode)===String(code));
+  if(!selected) return;
+
+  batchProductCode.value=code;
+  batchSets.value="";
+  batchSets.max=selected.availableToAllocate;
+
+  selectedProduct.innerHTML=`
+    <div class="card">
+      <img src="${selected.imageURLs?.[0]||""}">
+      <div>
+        <b>${selected.productCode}</b>
+        <small>${selected.productName}</small>
+        <small>Sizes: ${selected.sizes.join(", ")}</small>
+        <small>₹${selected.pricePerPC}</small>
+        <small>Available: ${selected.availableToAllocate}</small>
+      </div>
+    </div>
+  `;
+}
+
+/* START BATCH */
+function startBatch(){
+  fetch(`${API}?action=startBatch&supplierId=${SUPPLIER_ID}`)
+    .then(r=>r.json())
+    .then(j=>{
+      batchId=j.data.batchId;
+      noBatch.classList.add("hidden");
+      batchRunning.classList.remove("hidden");
+      batchIdText.innerText=batchId;
+      batchTimeText.innerText=new Date().toLocaleString();
+    });
+}
+
+/* ADD TO BATCH */
+function addProductToBatch(){
+  const code=batchProductCode.value.trim();
+  const sets=Number(batchSets.value);
+  if(!code||sets<=0) return;
+
+  fetch(`${API}?action=addProductToBatch&batchId=${batchId}&productCode=${code}&totalSets=${sets}`)
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success"){alert(j.message);return;}
+      loadBatchItems();
+      loadProducts();
+    });
+}
+
+/* LOAD BATCH ITEMS */
+function loadBatchItems(){
+  fetch(`${API}?action=getBatchItems&batchId=${batchId}`)
+    .then(r=>r.json())
+    .then(j=>{
+      batchItems.innerHTML="";
+      j.data.forEach(p=>{
+        batchItems.innerHTML+=`
+          <div class="card">
+            <img src="${p.imageURLs?.[0]||""}">
+            <div>
+              <b>${p.productCode}</b>
+              <small>${p.productName}</small>
+              <small>Sizes: ${p.sizes.join(", ")}</small>
+              <small>Sets: ${p.sets}</small>
+              <small>Available: ${p.availableSets}</small>
+              <small>₹${p.pricePerPC}</small>
+            </div>
+          </div>`;
+      });
+    });
+}
+
+/* PUBLISH */
+function publishBatch(){
+  if(!confirm("Publish batch?"))return;
+  fetch(`${API}?action=publishBatch&batchId=${batchId}`)
+    .then(()=>alert("Batch published"));
+}
+
+/* INIT */
+loadProducts();
+</script>
+
+</body>
+</html>
