@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Supplier – Orders</title>
+
+<style>
+body{
+  font-family:Arial;
+  background:#f4f4f4;
+  margin:0;
+}
+header{
+  background:#fff;
+  padding:12px;
+  border-bottom:1px solid #ddd;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.container{
+  padding:14px;
+}
+.card{
+  background:#fff;
+  border:1px solid #ddd;
+  border-radius:6px;
+  padding:12px;
+  margin-bottom:10px;
+}
+.card small{
+  color:#555;
+}
+button{
+  margin-top:8px;
+  padding:8px 12px;
+  background:#000;
+  color:#fff;
+  border:none;
+  cursor:pointer;
+}
+.actions{
+  margin-top:8px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <b>Supplier Orders</b>
+  <a href="supplier.html">← Back</a>
+</header>
+
+<div class="container" id="orders">
+  Loading orders…
+</div>
+
+<script>
+const API="https://script.google.com/macros/s/AKfycbzOutSpXzb0zfR5ZkJ1iq-1a1m4WImhpvn26M5oMxXzTb9J28o2rJWRG26IA2dEV3us/exec";
+const SUPPLIER_ID="SUP001";
+
+/* Load orders on page load */
+fetch(`${API}?action=getOrders&supplierId=${SUPPLIER_ID}`)
+  .then(r=>r.json())
+  .then(j=>render(j.data || []));
+
+function render(list){
+  const el=document.getElementById("orders");
+  el.innerHTML=list.length ? "" : "No orders yet";
+
+  list.forEach(o=>{
+    const orderId = o.orderId || o[0];
+    const buyerId = o.buyerId || o[3];
+    const orderStatus = o.orderStatus || o[5];
+    const dispatchStatus = o.dispatchStatus || o[7];
+
+    const div=document.createElement("div");
+    div.className="card";
+
+    div.innerHTML=`
+      <b>Order ID:</b> ${orderId}<br>
+      <small>Buyer: ${buyerId}</small><br>
+      <small>Order Status: ${orderStatus}</small><br>
+      <small>Dispatch Status: ${dispatchStatus}</small>
+
+      <div class="actions">
+        <button onclick="printOrder('${orderId}')">Print Order</button>
+        <a href="dispatch.html">
+          <button>Go to Dispatch</button>
+        </a>
+      </div>
+    `;
+
+    el.appendChild(div);
+  });
+}
+
+function printOrder(orderId){
+  window.open(`${API}?action=printOrder&orderId=${orderId}`,'_blank');
+}
+</script>
+
+</body>
+</html>
