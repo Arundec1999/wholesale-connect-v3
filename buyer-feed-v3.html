@@ -43,11 +43,34 @@ feed.appendChild(d);
 });
 });
 
-function add(batch,code){
-const s=prompt("Sets");
-fetch(`${API}?action=addToBasket&buyerId=${BUYER_ID}&supplierId=${SUPPLIER_ID}&batchId=${batch}&productCode=${code}&sets=${s}`)
-.then(()=>alert("Added"));
+function add(batchId, productCode){
+
+  const s = prompt("Enter number of sets");
+
+  if (!s || isNaN(s) || Number(s) <= 0) {
+    alert("Invalid sets value");
+    return;
+  }
+
+  const url =
+    `${API}?action=addToBasket`
+    + `&buyerId=${encodeURIComponent(BUYER_ID)}`
+    + `&supplierId=${encodeURIComponent(SUPPLIER_ID)}`
+    + `&batchId=${encodeURIComponent(batchId)}`
+    + `&productCode=${encodeURIComponent(productCode)}`
+    + `&sets=${encodeURIComponent(s)}`;
+
+  fetch(url)
+    .then(r => r.json())
+    .then(j => {
+      if (j.status !== "success") {
+        alert("Error: " + j.message);
+        return;
+      }
+      alert("Added to basket");
+    })
+    .catch(err => {
+      alert("Network error");
+      console.error(err);
+    });
 }
-</script>
-</body>
-</html>
