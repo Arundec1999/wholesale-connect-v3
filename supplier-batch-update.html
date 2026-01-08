@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Stock Updates to Customers</title>
+
+<style>
+body{
+  font-family: Arial, sans-serif;
+  background:#f4f5f7;
+  margin:0;
+}
+header{
+  background:#fff;
+  padding:18px 22px;
+  border-bottom:1px solid #ddd;
+  font-size:20px;
+  font-weight:600;
+}
+
+/* LAYOUT */
+.container{
+  display:grid;
+  grid-template-columns: 1fr 360px 1fr;
+  gap:24px;
+  padding:24px;
+}
+
+/* PANELS */
+.panel{
+  background:#fff;
+  padding:18px;
+  border-radius:10px;
+  box-shadow:0 2px 10px rgba(0,0,0,.06);
+}
+
+.panel h3{
+  margin-top:0;
+  font-size:16px;
+}
+
+/* PLACEHOLDERS */
+.placeholder{
+  color:#777;
+  font-size:14px;
+  margin-top:12px;
+}
+
+/* STOCK UPDATE CENTER */
+.batch-box{
+  background:#fff8c4;
+  padding:12px;
+  border-radius:8px;
+  font-size:14px;
+  margin-bottom:16px;
+}
+
+button{
+  width:100%;
+  padding:12px;
+  background:#000;
+  color:#fff;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+  font-size:14px;
+}
+
+button.running{
+  background:#2e7d32;
+  cursor:default;
+}
+
+label{
+  font-size:13px;
+  font-weight:600;
+  display:block;
+  margin-top:14px;
+}
+
+input{
+  width:100%;
+  padding:10px;
+  margin-top:6px;
+  border:1px solid #ccc;
+  border-radius:6px;
+  font-size:14px;
+}
+
+.hidden{
+  display:none;
+}
+</style>
+</head>
+
+<body>
+
+<header>STOCK UPDATES TO CUSTOMERS</header>
+
+<div class="container">
+
+  <!-- LEFT: ALL PRODUCTS (STEP 2) -->
+  <div class="panel">
+    <h3>All Products</h3>
+    <div class="placeholder">
+      Product list will appear here in Step 2
+    </div>
+  </div>
+
+  <!-- CENTER: STOCK UPDATE -->
+  <div class="panel">
+    <h3>Stock Update</h3>
+
+    <!-- NO BATCH -->
+    <div id="noBatch">
+      <button onclick="startBatch()">Start Batch</button>
+    </div>
+
+    <!-- BATCH RUNNING -->
+    <div id="batchRunning" class="hidden">
+      <div class="batch-box">
+        <b>Batch Running</b><br>
+        Batch ID: <span id="batchIdText"></span><br>
+        Started at: <span id="batchTimeText"></span><br>
+        Supplier: SUP001
+      </div>
+
+      <label>Product Code</label>
+      <input placeholder="Product code" disabled>
+
+      <label>Total Sets</label>
+      <input placeholder="Number of sets" disabled>
+
+      <button class="running">Batch Running</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: CURRENT BATCH ITEMS (STEP 4) -->
+  <div class="panel">
+    <h3>Current Batch</h3>
+    <div class="placeholder">
+      Batch products will appear here in Step 4
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = "https://script.google.com/macros/s/AKfycbyBWZeeZbMCpSaOcXeGzXc1o3HMGfko8n2YI4Veu2Ru2CQtyOKN6JNmJMt6ueqBrxxo/exec";
+const SUPPLIER_ID = "SUP001";
+
+let batchId = null;
+let batchStartTime = null;
+
+/* START BATCH */
+function startBatch(){
+  fetch(`${API}?action=startBatch&supplierId=${SUPPLIER_ID}`)
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success"){
+        alert(j.message || "Failed to start batch");
+        return;
+      }
+
+      batchId = j.data.batchId;
+      batchStartTime = new Date();
+
+      document.getElementById("noBatch").classList.add("hidden");
+      document.getElementById("batchRunning").classList.remove("hidden");
+
+      document.getElementById("batchIdText").innerText = batchId;
+      document.getElementById("batchTimeText").innerText =
+        batchStartTime.toLocaleString();
+    });
+}
+</script>
+
+</body>
+</html>
