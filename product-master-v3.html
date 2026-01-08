@@ -19,6 +19,7 @@ button{padding:10px;background:#000;color:#fff;border:none;border-radius:4px;cur
 small{color:#555}
 .edit{padding:6px 10px;background:#000;color:#fff;border:none;border-radius:4px}
 .empty{color:#777;margin-top:20px}
+.error{color:#b00020;margin-top:20px}
 </style>
 </head>
 
@@ -59,44 +60,78 @@ let products=[];
 
 /* ADD PRODUCT */
 function addProduct(){
-  if(!pCode.value||!pName.value){alert("Code & Name required");return;}
+  if(!pCode.value||!pName.value){
+    alert("Code & Name required");
+    return;
+  }
 
   fetch(`${API}?action=addProduct`
-    +`&supplierId=${SUPPLIER_ID}`
+    +`&supplierId=${encodeURIComponent(SUPPLIER_ID)}`
     +`&productCode=${encodeURIComponent(pCode.value)}`
     +`&productName=${encodeURIComponent(pName.value)}`
     +`&description=${encodeURIComponent(pDesc.value)}`
-    +`&sizesJSON=${encodeURIComponent(JSON.stringify(pSizes.value.split(",").map(s=>s.trim())))}`
-    +`&pricePerPC=${pPrice.value}`
-    +`&gstPercent=${pGST.value}`
+    +`&sizesJSON=${encodeURIComponent(JSON.stringify(pSizes.value.split(",").map(s=>s.trim())))}`  
+    +`&pricePerPC=${encodeURIComponent(pPrice.value)}`
+    +`&gstPercent=${encodeURIComponent(pGST.value)}`
     +`&imageURLsJSON=${encodeURIComponent(JSON.stringify(pImages.value.split(",").map(i=>i.trim())))}`
-  ).then(()=>{clearForm();loadProducts();});
+  )
+  .then(r=>r.json())
+  .then(j=>{
+    if(j.status!=="success"){
+      alert(j.message || "Error adding product");
+      return;
+    }
+    clearForm();
+    loadProducts();
+  });
 }
 
 function clearForm(){
   pCode.value=pName.value=pDesc.value=pSizes.value=pPrice.value=pGST.value=pImages.value="";
 }
 
-/* LOAD ALL PRODUCTS */
+/* LOAD ALL PRODUCTS (FIXED) */
 function loadProducts(){
-  fetch(`${API}?action=getProductsBySupplier&supplierId=${SUPPLIER_ID}`)
+  document.getElementById("list").innerHTML="Loading products…";
+
+  fetch(`${API}?action=getProductsBySupplier&supplierId=${encodeURIComponent(SUPPLIER_ID)}&_ts=${Date.now()}`)
     .then(r=>r.json())
     .then(j=>{
-      products=j.data||[];
+      if(j.status!=="success"){
+        document.getElementById("list").innerHTML =
+          `<div class="error">${j.message || "Failed to load products"}</div>`;
+        return;
+      }
+      products = j.data || [];
       render();
+    })
+    .catch(err=>{
+      console.error(err);
+      document.getElementById("list").innerHTML =
+        "<div class='error'>Network error</div>";
     });
 }
 
 /* RENDER */
 function render(){
-  const q=search.value.toLowerCase();
-  list.innerHTML="";
-  const f=products.filter(p=>p.productCode.toLowerCase().includes(q)||p.productName.toLowerCase().includes(q));
-  if(!f.length){list.innerHTML="<div class='empty'>No products</div>";return;}
+  const q = search.value.toLowerCase();
+  const el = document.getElementById("list");
+  el.innerHTML="";
+
+  const f = products.filter(p =>
+    p.productCode.toLowerCase().includes(q) ||
+    p.productName.toLowerCase().includes(q)
+  );
+
+  if(!f.length){
+    el.innerHTML="<div class='empty'>No products</div>";
+    return;
+  }
+
   f.forEach(p=>{
-    list.innerHTML+=`
+    el.innerHTML+=`
       <div class="product">
-        <img src="${p.imageURLs[0]||""}">
+        <img src="${(p.imageURLs && p.imageURLs[0]) || ""}">
         <div>
           <b>${p.productCode}</b><br>
           <small>${p.productName}</small><br>
@@ -108,6 +143,7 @@ function render(){
   });
 }
 
+/* INIT */
 loadProducts();
 </script>
 
