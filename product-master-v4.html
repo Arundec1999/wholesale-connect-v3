@@ -12,7 +12,7 @@ header{background:#fff;padding:16px 20px;border-bottom:1px solid #ddd;font-size:
 .left{width:360px;background:#fff;padding:16px;border-radius:10px}
 .right{flex:1;background:#fff;padding:16px;border-radius:10px}
 
-input,textarea{
+input,textarea,select{
   width:100%;
   padding:9px;
   margin:6px 0 12px;
@@ -22,7 +22,7 @@ input,textarea{
 }
 
 button{
-  padding:10px;
+  padding:8px 12px;
   background:#000;
   color:#fff;
   border:none;
@@ -33,11 +33,10 @@ button{
 
 .top{
   display:flex;
-  justify-content:space-between;
+  gap:10px;
   align-items:center;
   margin-bottom:14px
 }
-.search{width:60%}
 
 .products{
   display:grid;
@@ -58,28 +57,14 @@ button{
   border-radius:6px;
   background:#eee
 }
-
 .product small{display:block;color:#555;font-size:12px}
 
 .stock{font-weight:600;margin-top:4px}
 .stock.ok{color:#2e7d32}
 .stock.low{color:#c62828}
 
-.edit-box{
-  margin-top:8px;
-  display:none;
-  gap:6px
-}
-.edit-box input{
-  width:80px;
-  padding:6px;
-  margin:0
-}
-.edit-actions{
-  display:flex;
-  gap:6px;
-  margin-top:6px
-}
+.edit-box{display:none;margin-top:10px}
+.edit-actions{margin-top:8px}
 </style>
 </head>
 
@@ -108,8 +93,14 @@ button{
   <!-- ALL PRODUCTS -->
   <div class="right">
     <div class="top">
-      <b>All Products</b>
-      <input id="search" class="search" placeholder="Search" oninput="render()">
+      <input id="search" placeholder="Search" oninput="render()">
+
+      <select id="sort" onchange="render()">
+        <option value="latest">Latest added</option>
+        <option value="stockHigh">Stock: High → Low</option>
+        <option value="stockLow">Stock: Low → High</option>
+        <option value="name">Product Name A–Z</option>
+      </select>
     </div>
 
     <div id="list" class="products">Loading products…</div>
@@ -120,118 +111,112 @@ button{
 <script>
 const API="https://script.google.com/macros/s/AKfycbyBWZeeZbMCpSaOcXeGzXc1o3HMGfko8n2YI4Veu2Ru2CQtyOKN6JNmJMt6ueqBrxxo/exec";
 const SUPPLIER_ID="SUP001";
-
 let products=[];
 
-/* ---------------- ADD PRODUCT ---------------- */
-function addProduct(){
-  if(!pCode.value || !pName.value || !pStock.value){
-    alert("Product Code, Name & Master Stock are required");
-    return;
-  }
-
-  fetch(`${API}?action=addProduct`
-    +`&supplierId=${SUPPLIER_ID}`
-    +`&productCode=${encodeURIComponent(pCode.value)}`
-    +`&productName=${encodeURIComponent(pName.value)}`
-    +`&description=${encodeURIComponent(pDesc.value)}`
-    +`&sizesJSON=${encodeURIComponent(JSON.stringify(pSizes.value.split(",").map(s=>s.trim())))}` 
-    +`&pricePerPC=${pPrice.value}`
-    +`&gstPercent=${pGST.value}`
-    +`&imageURLsJSON=${encodeURIComponent(JSON.stringify(pImages.value.split(",").map(i=>i.trim())))}` 
-    +`&masterStock=${pStock.value}`
-  )
-  .then(r=>r.json())
-  .then(j=>{
-    if(j.status!=="success"){ alert(j.message); return; }
-    clearForm();
-    loadProducts();
-  });
-}
-
-function clearForm(){
-  pCode.value=pName.value=pDesc.value=pSizes.value=pPrice.value=pGST.value=pStock.value=pImages.value="";
-}
-
-/* ---------------- LOAD PRODUCTS ---------------- */
+/* LOAD PRODUCTS */
 function loadProducts(){
   fetch(`${API}?action=getProductsBySupplier&supplierId=${SUPPLIER_ID}`)
     .then(r=>r.json())
     .then(j=>{
-      products = (j.data || [])
-        .sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+      products = j.data || [];
       render();
     });
 }
 
-/* ---------------- RENDER ---------------- */
+/* RENDER */
 function render(){
   const q = search.value.toLowerCase();
-  list.innerHTML="";
+  const sortVal = sort.value;
 
-  const filtered = products.filter(p=>
+  let listData = products.filter(p =>
     String(p.productCode).toLowerCase().includes(q) ||
     String(p.productName).toLowerCase().includes(q)
   );
 
-  if(!filtered.length){
+  if(sortVal==="latest"){
+    listData.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  }
+  if(sortVal==="stockHigh"){
+    listData.sort((a,b)=>getStock(b)-getStock(a));
+  }
+  if(sortVal==="stockLow"){
+    listData.sort((a,b)=>getStock(a)-getStock(b));
+  }
+  if(sortVal==="name"){
+    listData.sort((a,b)=>a.productName.localeCompare(b.productName));
+  }
+
+  list.innerHTML="";
+  if(!listData.length){
     list.innerHTML="<div style='color:#777'>No products</div>";
     return;
   }
 
-  filtered.forEach(p=>{
-    const stock = Number(p.MASTER_STOCK || 0);
-    const stockClass = stock>0 ? "ok" : "low";
-
-    list.innerHTML += `
+  listData.forEach(p=>{
+    const stock = getStock(p);
+    list.innerHTML+=`
       <div class="product">
-        <img src="${p.imageURLs?.[0] || ""}">
+        <img src="${p.imageURLs?.[0]||""}">
         <div style="flex:1">
           <b>${p.productCode}</b>
           <small>${p.productName}</small>
           <small>Sizes: ${p.sizes.join(", ")}</small>
           <small>₹${p.pricePerPC}</small>
-
-          <div class="stock ${stockClass}">
-            Godown Stock: <span id="stockText-${p.productCode}">${stock}</span> sets
+          <div class="stock ${stock>0?'ok':'low'}">
+            Godown Stock: ${stock} sets
           </div>
 
           <div class="edit-actions">
-            <button onclick="openEdit('${p.productCode}', ${stock})">Edit</button>
+            <button onclick="openEdit('${p.productCode}')">Edit</button>
           </div>
 
           <div class="edit-box" id="edit-${p.productCode}">
-            <input id="editStock-${p.productCode}" type="number" min="0" value="${stock}">
-            <button onclick="saveStock('${p.productCode}')">Save</button>
-            <button onclick="cancelEdit('${p.productCode}')">Cancel</button>
+            <input id="eName-${p.productCode}" value="${p.productName}">
+            <textarea id="eDesc-${p.productCode}">${p.description||""}</textarea>
+            <input id="eSizes-${p.productCode}" value="${p.sizes.join(",")}">
+            <input id="ePrice-${p.productCode}" value="${p.pricePerPC}">
+            <input id="eGST-${p.productCode}" value="${p.gstPercent}">
+            <input id="eStock-${p.productCode}" value="${stock}">
+            <input id="eImages-${p.productCode}" value="${(p.imageURLs||[]).join(",")}">
+
+            <button onclick="saveEdit('${p.productCode}')">Save</button>
+            <button onclick="closeEdit('${p.productCode}')">Cancel</button>
           </div>
         </div>
       </div>`;
   });
 }
 
-/* ---------------- EDIT FLOW ---------------- */
-function openEdit(code){
-  document.getElementById(`edit-${code}`).style.display="flex";
+/* HELPERS */
+function getStock(p){
+  return Number(p.MASTER_STOCK ?? p.masterStock ?? 0);
 }
 
-function cancelEdit(code){
+function openEdit(code){
+  document.getElementById(`edit-${code}`).style.display="block";
+}
+function closeEdit(code){
   document.getElementById(`edit-${code}`).style.display="none";
 }
 
-function saveStock(code){
-  const val = Number(document.getElementById(`editStock-${code}`).value);
-  if(isNaN(val)||val<0){
-    alert("Invalid stock value");
-    return;
-  }
+/* SAVE EDIT (frontend wired, backend next step) */
+function saveEdit(code){
+  alert("Frontend wired. Next step: backend updateProduct API.");
+}
 
-  fetch(`${API}?action=updateMasterStock&productCode=${code}&masterStock=${val}`)
-    .then(r=>r.json())
-    .then(j=>{
-      if(j.status!=="success"){ alert(j.message); return; }
-      loadProducts();
-    });
+/* ADD PRODUCT */
+function addProduct(){
+  fetch(`${API}?action=addProduct`
+    +`&supplierId=${SUPPLIER_ID}`
+    +`&productCode=${pCode.value}`
+    +`&productName=${pName.value}`
+    +`&description=${pDesc.value}`
+    +`&sizesJSON=${JSON.stringify(pSizes.value.split(",").map(s=>s.trim()))}`
+    +`&pricePerPC=${pPrice.value}`
+    +`&gstPercent=${pGST.value}`
+    +`&imageURLsJSON=${JSON.stringify(pImages.value.split(",").map(i=>i.trim()))}`
+    +`&masterStock=${pStock.value}`
+  ).then(()=>{ loadProducts(); });
 }
 
 /* INIT */
