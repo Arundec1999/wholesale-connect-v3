@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Active Batches</title>
+<style>
+body{font-family:Arial;background:#f4f5f7;margin:0}
+header{background:#fff;padding:14px;font-weight:bold;border-bottom:1px solid #ddd}
+.batch{background:#fff;margin:12px;border-radius:6px;border:1px solid #ddd}
+.batch h3{margin:0;padding:12px;border-bottom:1px solid #eee}
+.row{display:grid;grid-template-columns:60px 1fr 80px 80px 80px 80px 80px;padding:10px;align-items:center;border-top:1px solid #eee;font-size:13px}
+.row img{width:50px;height:50px;object-fit:cover;border-radius:4px}
+.green{color:#1a8f2d;font-weight:bold}
+.red{color:#c0392b;font-weight:bold}
+.yellow{color:#f39c12;font-weight:bold}
+</style>
+</head>
+
+<body>
+
+<header>Active Batches</header>
+<div id="batches"></div>
+
+<script>
+const supplierId = localStorage.getItem("supplierId"); // already in your system
+const API = "https://script.google.com/macros/s/AKfycbzOutSpXzb0zfR5ZkJ1iq-1a1m4WImhpvn26M5oMxXzTb9J28o2rJWRG26IA2dEV3us/exec";
+
+fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
+.then(r=>r.json())
+.then(data=>{
+  const div=document.getElementById("batches");
+
+  if(data.length==0){
+    div.innerHTML="<p style='padding:20px'>No active batches</p>";
+    return;
+  }
+
+  data.forEach(b=>{
+    const block=document.createElement("div");
+    block.className="batch";
+    block.innerHTML=`<h3>Batch ${b.batchId} — ${b.createdAt}</h3>`;
+
+    b.items.forEach(i=>{
+      let cls="green";
+      if(i.availableSets==0) cls="red";
+      else if(i.availableSets<5) cls="yellow";
+
+      block.innerHTML+=`
+        <div class="row">
+          <img src="${i.image}">
+          <div>${i.productName}</div>
+          <div>${i.godown}</div>
+          <div>${i.totalSets}</div>
+          <div>${i.reservedSets}</div>
+          <div class="${cls}">${i.availableSets}</div>
+          <div>${i.batchUtilization}%</div>
+        </div>`;
+    });
+
+    div.appendChild(block);
+  });
+});
+</script>
+
+</body>
+</html>
