@@ -74,7 +74,7 @@ if(!supplierId){
   localStorage.setItem("supplierId", supplierId);
 }
 
-const API = "https://script.google.com/macros/s/AKfycbzOutSpXzb0zfR5ZkJ1iq-1a1m4WImhpvn26M5oMxXzTb9J28o2rJWRG26IA2dEV3us/exec?cache=" + Date.now();
+const API = "https://script.google.com/macros/s/AKfycbyBWZeeZbMCpSaOcXeGzXc1o3HMGfko8n2YI4Veu2Ru2CQtyOKN6JNmJMt6ueqBrxxo/exec";
 
 fetch(API + "?action=getSupplierActiveBatches&supplierId=" + supplierId)
   .then(r => r.json())
