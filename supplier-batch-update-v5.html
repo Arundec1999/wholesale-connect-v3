@@ -171,17 +171,22 @@ let batchId=null;
 
 /* LOAD PRODUCTS */
 function loadProducts(){
-  Promise.all([
+  productList.innerHTML="Loading products…";
+
+  Promise.allSettled([
     fetch(`${API}?action=getProductsBySupplier&supplierId=${SUPPLIER_ID}`).then(r=>r.json()),
     fetch(`${API}?action=getProductStockSummary&supplierId=${SUPPLIER_ID}`).then(r=>r.json())
   ])
-  .then(([pRes,sRes])=>{
+  .then(results=>{
+    const pRes = results[0].status==="fulfilled" ? results[0].value : {data:[]};
+    const sRes = results[1].status==="fulfilled" ? results[1].value : {data:[]};
+
     const stockMap={};
-    sRes.data.forEach(s=>{
+    (sRes.data||[]).forEach(s=>{
       stockMap[String(s.productCode)] = s;
     });
 
-    products = pRes.data.map(p=>{
+    products = (pRes.data||[]).map(p=>{
       const s = stockMap[String(p.productCode)] || {};
       return {
         ...p,
@@ -192,6 +197,9 @@ function loadProducts(){
     });
 
     renderProducts();
+  })
+  .catch(()=>{
+    productList.innerHTML="Failed to load products";
   });
 }
 
@@ -326,13 +334,23 @@ function closeCurrentBatch(){
 
 /* PUBLISH */
 function publishBatch(){
-  if(!batchId) return alert("No batch running");
+  if(!batchId){
+    alert("No active batch");
+    return;
+  }
+
+  if(!confirm("Publish this batch to buyers?")) return;
 
   fetch(`${API}?action=publishBatch&batchId=${batchId}`)
     .then(r=>r.json())
     .then(j=>{
-      if(j.status==="success") alert("Batch published to buyers");
-      else alert(j.message);
+      if(j.status!=="success"){
+        alert(j.message);
+        return;
+      }
+
+      alert("Batch published successfully");
+      loadProducts();
     });
 }
 
