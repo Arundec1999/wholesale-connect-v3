@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Supplier – Active Batches</title>
+
+<style>
+body{
+  font-family: Arial, sans-serif;
+  background:#f4f5f7;
+  margin:0;
+}
+header{
+  background:#fff;
+  padding:14px 18px;
+  font-size:18px;
+  font-weight:600;
+  border-bottom:1px solid #ddd;
+}
+.batch{
+  background:#fff;
+  margin:14px;
+  border-radius:8px;
+  border:1px solid #ddd;
+  overflow:hidden;
+}
+.batch h3{
+  margin:0;
+  padding:12px 16px;
+  background:#fafafa;
+  border-bottom:1px solid #eee;
+  font-size:15px;
+}
+.row{
+  display:grid;
+  grid-template-columns:70px 1.4fr 80px 80px 80px 80px 70px 100px;
+  padding:10px 16px;
+  align-items:center;
+  font-size:13px;
+  border-top:1px solid #eee;
+}
+.row.head{
+  font-weight:bold;
+  background:#f9f9f9;
+}
+.row img{
+  width:55px;
+  height:55px;
+  object-fit:cover;
+  border-radius:6px;
+  border:1px solid #ddd;
+}
+.green{color:#1e8f39;font-weight:bold;}
+.yellow{color:#f39c12;font-weight:bold;}
+.red{color:#c0392b;font-weight:bold;}
+button{
+  padding:5px 8px;
+  border:1px solid #aaa;
+  background:#fff;
+  cursor:pointer;
+  margin-right:4px;
+}
+button:hover{background:#f0f0f0;}
+</style>
+
+</head>
+
+<body>
+
+<header>Active Batches</header>
+<div id="batches"></div>
+
+<script>
+let supplierId = localStorage.getItem("supplierId");
+if(!supplierId){
+  supplierId = prompt("Enter Supplier ID");
+  localStorage.setItem("supplierId", supplierId);
+}
+
+const API = "https://script.google.com/macros/s/AKfycbyBWZeeZbMCpSaOcXeGzXc1o3HMGfko8n2YI4Veu2Ru2CQtyOKN6JNmJMt6ueqBrxxo/exec";
+
+function loadBatches(){
+fetch(API + "?action=getSupplierActiveBatches&supplierId=" + supplierId)
+  .then(r => r.json())
+  .then(data => {
+
+    const wrap = document.getElementById("batches");
+    wrap.innerHTML="";
+
+    if(!Array.isArray(data)){
+      wrap.innerHTML = "<div style='padding:20px;color:red'>API Error: "+JSON.stringify(data)+"</div>";
+      return;
+    }
+
+    if(data.length===0){
+      wrap.innerHTML="<div style='padding:20px'>No active batches</div>";
+      return;
+    }
+
+    data.forEach(b=>{
+      const block=document.createElement("div");
+      block.className="batch";
+
+      const date=new Date(b.createdAt).toLocaleString();
+
+      block.innerHTML=`
+        <h3>
+          Batch ${b.batchId} — ${date}
+          <button style="float:right" onclick="closeBatch('${b.batchId}')">🛑 Close Batch</button>
+        </h3>
+        <div class="row head">
+          <div>Image</div>
+          <div>Product</div>
+          <div>Godown</div>
+          <div>In Batch</div>
+          <div>Reserved</div>
+          <div>Available</div>
+          <div>Load%</div>
+          <div>Action</div>
+        </div>
+      `;
+
+      const grouped={};
+      b.items.forEach(i=>{
+        if(!grouped[i.productCode]){
+          grouped[i.productCode]={...i};
+        }else{
+          grouped[i.productCode].totalSets+=i.totalSets;
+          grouped[i.productCode].reservedSets+=i.reservedSets;
+          grouped[i.productCode].availableSets+=i.availableSets;
+        }
+      });
+
+      Object.values(grouped).forEach(i=>{
+        const load=i.totalSets?Math.round((i.reservedSets/i.totalSets)*100):0;
+        let cls="green";
+        if(i.availableSets===0) cls="red";
+        else if(i.availableSets<5) cls="yellow";
+
+        block.innerHTML+=`
+          <div class="row">
+            <div><img src="${i.image||'https://via.placeholder.com/55'}"></div>
+            <div>${i.productName}</div>
+            <div>${i.godown}</div>
+            <div>${i.totalSets}</div>
+            <div>${i.reservedSets}</div>
+            <div class="${cls}">${i.availableSets}</div>
+            <div>${load}%</div>
+            <div>
+              <button onclick="editStock('${b.batchId}','${i.productCode}',${i.availableSets})">✏️</button>
+            </div>
+          </div>
+        `;
+      });
+
+      wrap.appendChild(block);
+    });
+
+  });
+}
+
+function editStock(batchId, productCode, current){
+  const newVal = prompt("Enter new available sets", current);
+  if(newVal===null) return;
+
+  fetch(API+"?action=updateBatchAvailable&batchId="+batchId+"&productCode="+productCode+"&newAvailable="+newVal)
+  .then(r=>r.json())
+  .then(res=>{
+    if(res.status==="success"){
+      loadBatches();
+    }else{
+      alert(res.message || "Error");
+    }
+  });
+}
+
+function closeBatch(batchId){
+  if(!confirm("Close this batch?")) return;
+  fetch(API+"?action=closeBatch&batchId="+batchId)
+  .then(r=>r.json())
+  .then(res=>{
+    if(res.status==="success"){
+      loadBatches();
+    }else{
+      alert(res.message || "Error");
+    }
+  });
+}
+
+loadBatches();
+</script>
+
+</body>
+</html>
