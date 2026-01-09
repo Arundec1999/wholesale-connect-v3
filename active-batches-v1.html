@@ -2,18 +2,67 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Active Batches</title>
+<title>Supplier – Active Batches</title>
+
 <style>
-body{font-family:Arial;background:#f4f5f7;margin:0}
-header{background:#fff;padding:14px;font-weight:bold;border-bottom:1px solid #ddd}
-.batch{background:#fff;margin:12px;border-radius:6px;border:1px solid #ddd}
-.batch h3{margin:0;padding:12px;border-bottom:1px solid #eee}
-.row{display:grid;grid-template-columns:60px 1fr 80px 80px 80px 80px 80px;padding:10px;align-items:center;border-top:1px solid #eee;font-size:13px}
-.row img{width:50px;height:50px;object-fit:cover;border-radius:4px}
-.green{color:#1a8f2d;font-weight:bold}
-.red{color:#c0392b;font-weight:bold}
-.yellow{color:#f39c12;font-weight:bold}
+body{
+  font-family: Arial, sans-serif;
+  background:#f4f5f7;
+  margin:0;
+}
+header{
+  background:#fff;
+  padding:14px 18px;
+  font-size:18px;
+  font-weight:600;
+  border-bottom:1px solid #ddd;
+}
+.batch{
+  background:#fff;
+  margin:14px;
+  border-radius:8px;
+  border:1px solid #ddd;
+  overflow:hidden;
+}
+.batch h3{
+  margin:0;
+  padding:12px 16px;
+  background:#fafafa;
+  border-bottom:1px solid #eee;
+  font-size:15px;
+}
+.table{
+  width:100%;
+}
+.row{
+  display:grid;
+  grid-template-columns:70px 1.4fr 90px 90px 90px 90px 90px;
+  padding:10px 16px;
+  align-items:center;
+  font-size:13px;
+  border-top:1px solid #eee;
+}
+.head{
+  font-weight:bold;
+  background:#f9f9f9;
+}
+.row img{
+  width:55px;
+  height:55px;
+  object-fit:cover;
+  border-radius:6px;
+  border:1px solid #ddd;
+}
+.green{color:#1e8f39;font-weight:bold;}
+.yellow{color:#f39c12;font-weight:bold;}
+.red{color:#c0392b;font-weight:bold;}
+.empty{
+  padding:30px;
+  text-align:center;
+  color:#777;
+}
 </style>
+
 </head>
 
 <body>
@@ -22,42 +71,71 @@ header{background:#fff;padding:14px;font-weight:bold;border-bottom:1px solid #dd
 <div id="batches"></div>
 
 <script>
-const supplierId = localStorage.getItem("supplierId"); // already in your system
+const supplierId = localStorage.getItem("supplierId"); 
 const API = "https://script.google.com/macros/s/AKfycbzOutSpXzb0zfR5ZkJ1iq-1a1m4WImhpvn26M5oMxXzTb9J28o2rJWRG26IA2dEV3us/exec";
 
 fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
 .then(r=>r.json())
 .then(data=>{
-  const div=document.getElementById("batches");
+  const wrap=document.getElementById("batches");
 
-  if(data.length==0){
-    div.innerHTML="<p style='padding:20px'>No active batches</p>";
+  if(!data || data.length===0){
+    wrap.innerHTML="<div class='empty'>No active batches</div>";
     return;
   }
 
   data.forEach(b=>{
     const block=document.createElement("div");
     block.className="batch";
-    block.innerHTML=`<h3>Batch ${b.batchId} — ${b.createdAt}</h3>`;
 
+    const date=new Date(b.createdAt).toLocaleString();
+
+    block.innerHTML=`
+      <h3>Batch ${b.batchId} &nbsp; <small style="color:#777">Started: ${date}</small></h3>
+      <div class="row head">
+        <div>Image</div>
+        <div>Product</div>
+        <div>Godown</div>
+        <div>In Batch</div>
+        <div>Reserved</div>
+        <div>Available</div>
+        <div>Load %</div>
+      </div>
+    `;
+
+    // ---- Merge duplicate SKUs inside batch ----
+    const grouped = {};
     b.items.forEach(i=>{
+      if(!grouped[i.productCode]){
+        grouped[i.productCode] = {...i};
+      }else{
+        grouped[i.productCode].totalSets += i.totalSets;
+        grouped[i.productCode].reservedSets += i.reservedSets;
+        grouped[i.productCode].availableSets += i.availableSets;
+      }
+    });
+
+    Object.values(grouped).forEach(i=>{
+      const load = i.totalSets ? Math.round((i.reservedSets / i.totalSets)*100) : 0;
+
       let cls="green";
       if(i.availableSets==0) cls="red";
       else if(i.availableSets<5) cls="yellow";
 
       block.innerHTML+=`
         <div class="row">
-          <img src="${i.image}">
+          <div><img src="${i.image || 'https://via.placeholder.com/55'}"></div>
           <div>${i.productName}</div>
           <div>${i.godown}</div>
           <div>${i.totalSets}</div>
           <div>${i.reservedSets}</div>
           <div class="${cls}">${i.availableSets}</div>
-          <div>${i.batchUtilization}%</div>
-        </div>`;
+          <div>${load}%</div>
+        </div>
+      `;
     });
 
-    div.appendChild(block);
+    wrap.appendChild(block);
   });
 });
 </script>
