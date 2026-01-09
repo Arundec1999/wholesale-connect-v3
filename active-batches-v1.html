@@ -83,6 +83,14 @@ const API = "https://script.google.com/macros/s/AKfycbzOutSpXzb0zfR5ZkJ1iq-1a1m4
 fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
 .then(r=>r.json())
 .then(data=>{
+
+  console.log("API response:", data);
+
+  if(!Array.isArray(data)){
+    document.getElementById("batches").innerHTML =
+      "<div style='padding:20px;color:red'>API Error: "+ (data.message || JSON.stringify(data)) +"</div>";
+    return;
+  }
   const wrap=document.getElementById("batches");
 
   if(!data || data.length===0){
