@@ -98,7 +98,7 @@ fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
     return;
   }
 
-  data.forEach(b=>{
+  data.forEach → b.items.forEach → Object.values(grouped).forEach
     const block=document.createElement("div");
     block.className="batch";
 
