@@ -350,9 +350,22 @@ function publishBatch(){
       }
 
       alert("Batch published successfully");
+
+      // 🔥 FULL UI RESET
+      batchId = null;
+      batchRunning.classList.add("hidden");
+      noBatch.classList.remove("hidden");
+
+      batchItems.innerHTML = "No active batch";
+      selectedProductInfo.innerHTML = "Select product from left";
+      batchProductCode.value = "";
+      batchSets.value = "";
+      batchComment.value = "";
+
       loadProducts();
     });
 }
+
 
 /* INIT */
 loadProducts();
