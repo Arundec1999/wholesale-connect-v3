@@ -71,7 +71,13 @@ header{
 <div id="batches"></div>
 
 <script>
-const supplierId = localStorage.getItem("supplierId"); 
+let supplierId = localStorage.getItem("supplierId");
+
+// fallback for testing
+if(!supplierId){
+  supplierId = prompt("Enter Supplier ID");
+  localStorage.setItem("supplierId", supplierId);
+} 
 const API = "https://script.google.com/macros/s/AKfycbzOutSpXzb0zfR5ZkJ1iq-1a1m4WImhpvn26M5oMxXzTb9J28o2rJWRG26IA2dEV3us/exec";
 
 fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
