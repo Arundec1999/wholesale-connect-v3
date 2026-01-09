@@ -326,10 +326,33 @@ function loadBatchItems(){
 
 /* CLOSE */
 function closeCurrentBatch(){
-  if(!confirm("Close this batch and return unsold stock?")) return;
+  if(!batchId) return;
+
+  if(!confirm("Close this batch? Unsold stock will return to godown.")) return;
 
   fetch(`${API}?action=closeBatch&batchId=${batchId}`)
-    .then(()=>{ batchId=null; loadProducts(); });
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success"){
+        alert(j.message);
+        return;
+      }
+
+      alert("Batch closed. Unsold stock returned.");
+
+      // 🔥 FULL RESET (same as publish)
+      batchId = null;
+      batchRunning.classList.add("hidden");
+      noBatch.classList.remove("hidden");
+
+      batchItems.innerHTML = "No active batch";
+      selectedProductInfo.innerHTML = "Select product from left";
+      batchProductCode.value = "";
+      batchSets.value = "";
+      batchComment.value = "";
+
+      loadProducts();
+    });
 }
 
 /* PUBLISH */
