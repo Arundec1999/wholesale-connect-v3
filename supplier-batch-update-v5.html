@@ -203,7 +203,7 @@ function renderProducts(){
     p.productName.toLowerCase().includes(q)
   );
 
-  const sort=sortSelect.value;
+  const sort=document.getElementById("sort").value;
 
   if(sort==="name"){
     list.sort((a,b)=>a.productName.localeCompare(b.productName));
