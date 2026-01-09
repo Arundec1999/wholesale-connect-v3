@@ -306,7 +306,7 @@ function loadBatchItems(){
               <small>Sizes: ${p.sizes.join(", ")}</small>
               <small>Sets: ${p.sets}</small>
               <small>₹${p.pricePerPC}</small>
-              ${p.comment ? `<small>📝 ${p.comment}</small>` : ""}
+              ${(p.comment || p.note || "") ? `<small>📝 ${p.comment || p.note}</small>` : ""}
             </div>
           </div>`;
       });
