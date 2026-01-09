@@ -283,11 +283,16 @@ function addProductToBatch(){
     +`&totalSets=${sets}`
     +`&comment=${encodeURIComponent(comment)}`
   )
-  .then(()=>{ 
-    batchComment.value="";
-    loadBatchItems(); 
-    loadProducts(); 
-  });
+.then(()=>{
+    batchProductCode.value = "";
+    batchSets.value = "";
+    batchComment.value = "";
+    selectedProductInfo.innerHTML = "Select product from left";
+
+    loadBatchItems();
+    loadProducts();
+});
+
 }
 
 /* LOAD BATCH ITEMS */
@@ -314,7 +319,30 @@ function loadBatchItems(){
 }
 
 /* CLOSE / PUBLISH */
-function closeCurrentBatch(){ batchId=null; loadProducts(); }
+function closeCurrentBatch(){
+  if(!batchId) return;
+
+  if(!confirm("Close this batch? Unsold stock will return to godown.")) return;
+
+  fetch(`${API}?action=closeBatch&batchId=${batchId}`)
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success"){
+        alert(j.message);
+        return;
+      }
+
+      alert("Batch closed. Unsold stock returned.");
+
+      batchId = null;
+      batchRunning.classList.add("hidden");
+      noBatch.classList.remove("hidden");
+      batchItems.innerHTML = "No active batch";
+
+      loadProducts();
+    });
+}
+
 function publishBatch(){ alert("Published"); }
 
 /* INIT */
