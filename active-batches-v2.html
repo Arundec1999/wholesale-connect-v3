@@ -160,9 +160,11 @@ function editStock(batchId, productCode, current, reserved, total){
   if(newVal===null) return;
 
   const v = Number(newVal);
-  if(isNaN(v) || v<reserved || v>total){
-    alert("Available must be between Reserved and Total");
+  if(isNaN(v) || v < reserved){
+    alert("Available cannot be less than reserved");
     return;
+}
+
   }
 
   fetch(API+"?action=updateBatchAvailable&batchId="+batchId+"&productCode="+productCode+"&newAvailable="+v)
