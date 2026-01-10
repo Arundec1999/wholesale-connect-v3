@@ -16,6 +16,7 @@ header{background:#fff;padding:14px 18px;font-size:18px;font-weight:600;border-b
   padding:10px 16px;border-top:1px solid #eee;align-items:center;font-size:13px
 }
 .row.head{font-weight:bold;background:#f9f9f9}
+
 .row img{width:55px;height:55px;object-fit:cover;border-radius:6px;border:1px solid #ddd}
 
 .green{color:#1e8f39;font-weight:bold}
@@ -32,12 +33,15 @@ button:hover{background:#eee}
 
 .buyerRow{
   display:grid;
-  grid-template-columns:120px 90px 90px 260px;
+  grid-template-columns:120px 90px 90px 90px 240px;
   padding:6px 10px;font-size:12px;border-top:1px solid #eee;align-items:center
 }
 .buyerRow.head{font-weight:bold;background:#eee}
 
-input.qty{width:60px;padding:3px}
+input.qty{
+  width:60px;
+  padding:3px;
+}
 </style>
 </head>
 
@@ -55,7 +59,7 @@ if(!supplierId){
   localStorage.setItem("supplierId",supplierId);
 }
 
-/* ================== LOAD BATCHES ================== */
+/* ================= LOAD BATCHES ================= */
 function load(){
 fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
 .then(r=>r.json())
@@ -74,7 +78,7 @@ fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
       </h3>
       <div class="row head">
         <div>Img</div><div>Product</div><div>Godown</div>
-        <div>Locked</div><div>Batch</div><div>Reserved</div><div>Sellable</div><div>Edit</div>
+        <div>Locked</div><div>This Batch</div><div>Reserved</div><div>Sellable</div><div>Edit</div>
       </div>
     `;
 
@@ -105,7 +109,7 @@ fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
 });
 }
 
-/* ================== EDIT SELLABLE ================== */
+/* ================= EDIT BATCH SELLABLE ================= */
 function editStock(batch,code,avail,res){
  const v=prompt("New SELLABLE sets",avail);
  if(v==null) return;
@@ -114,7 +118,7 @@ function editStock(batch,code,avail,res){
  .then(()=>load());
 }
 
-/* ================== BUYER RESERVATIONS ================== */
+/* ================= BUYER RESERVATIONS ================= */
 function loadBuyers(batch,code){
  fetch(API+`?action=getReservationsForBatchProduct&batchId=${batch}&productCode=${code}`)
  .then(r=>r.json())
@@ -125,21 +129,26 @@ function loadBuyers(batch,code){
 
   let h=`<div class="buyerBox">
     <div class="buyerRow head">
-      <div>Buyer</div><div>Requested</div><div>Status</div><div>Action</div>
+      <div>Buyer</div>
+      <div>Requested</div>
+      <div>Approved</div>
+      <div>Status</div>
+      <div>Action</div>
     </div>`;
 
   res.data.forEach(b=>{
     h+=`
     <div class="buyerRow">
       <div>${b.buyerId}</div>
+      <div>${b.requestedSets}</div>
       <div>
-        <input class="qty" id="qty-${b.row}" value="${b.sets}">
+        <input class="qty" id="qty-${b.basketId}-${code}" value="${b.approvedSets}">
       </div>
       <div>${b.status}</div>
       <div>
-        <button onclick="updateQty(${b.row})">Update</button>
+        <button onclick="updateQty('${b.basketId}','${batch}','${code}')">Update</button>
         <button onclick="approve('${b.basketId}')">Approve</button>
-        <button onclick="reject(${b.row})">Reject</button>
+        <button onclick="reject('${b.basketId}','${batch}','${code}')">Reject</button>
       </div>
     </div>`;
   });
@@ -149,37 +158,41 @@ function loadBuyers(batch,code){
  });
 }
 
-/* ================== INLINE QTY ================== */
-function updateQty(row){
- const v=Number(document.getElementById("qty-"+row).value);
- if(isNaN(v)||v<=0) return alert("Invalid qty");
- fetch(API+`?action=updateBasketItemQty&row=${row}&sets=${v}`)
- .then(r=>r.json())
- .then(res=>{
-   if(res.status==="success") load();
-   else alert(res.message||"Error");
- });
+/* ================= INLINE QTY UPDATE (FIXED) ================= */
+function updateQty(basket,batch,code){
+  const v = Number(document.getElementById(`qty-${basket}-${code}`).value);
+  if(isNaN(v) || v < 0) return alert("Invalid qty");
+
+  fetch(API + `?action=updateApprovedBasketQty`
+      + `&basketId=${basket}`
+      + `&batchId=${batch}`
+      + `&productCode=${code}`
+      + `&sets=${v}`)
+  .then(r=>r.json())
+  .then(res=>{
+    if(res.status==="success") load();
+    else alert(res.message || "Error");
+  });
 }
 
-/* ================== APPROVE ================== */
+/* ================= APPROVE ================= */
 function approve(id){
  fetch(API+"?action=approveBasket&basketId="+id).then(()=>load());
 }
 
-/* ================== REJECT ================== */
-function reject(row){
+/* ================= REJECT ================= */
+function reject(id,batch,code){
  if(!confirm("Reject buyer & return stock?")) return;
- fetch(API+`?action=rejectBasketItem&row=${row}`).then(()=>load());
+ fetch(API+`?action=rejectBasketItem&basketId=${id}&batchId=${batch}&productCode=${code}`)
+ .then(()=>load());
 }
 
-/* ================== CLOSE BATCH ================== */
+/* ================= CLOSE BATCH ================= */
 function closeBatch(b){
  if(!confirm("Close this batch?")) return;
  fetch(API+"?action=closeBatch&batchId="+b).then(()=>load());
 }
 
-/* Auto refresh */
-setInterval(load,10000);
 load();
 </script>
 
