@@ -33,7 +33,7 @@ header{
 }
 .row{
   display:grid;
-  grid-template-columns:70px 1.5fr 70px 110px 80px 80px 80px 90px 100px;
+  grid-template-columns:70px 1.6fr 70px 110px 80px 80px 80px 90px 90px;
   padding:10px 16px;
   align-items:center;
   font-size:13px;
@@ -60,6 +60,11 @@ button{
   cursor:pointer;
 }
 button:hover{background:#eee;}
+.empty{
+  padding:40px;
+  text-align:center;
+  color:#777;
+}
 </style>
 </head>
 
@@ -78,76 +83,97 @@ if(!supplierId){
 const API = "https://script.google.com/macros/s/AKfycbyBWZeeZbMCpSaOcXeGzXc1o3HMGfko8n2YI4Veu2Ru2CQtyOKN6JNmJMt6ueqBrxxo/exec";
 
 function loadBatches(){
-  fetch(API + "?action=getSupplierActiveBatches&supplierId=" + supplierId)
-  .then(r=>r.json())
-  .then(data=>{
-    const wrap=document.getElementById("batches");
-    wrap.innerHTML="";
+  fetch(API + "?action=getSupplierActiveBatches&supplierId=" + encodeURIComponent(supplierId))
+    .then(r=>r.json())
+    .then(data=>{
+      const wrap = document.getElementById("batches");
+      wrap.innerHTML = "";
 
-    if(!Array.isArray(data)){
-      wrap.innerHTML="<div style='padding:20px;color:red'>"+JSON.stringify(data)+"</div>";
-      return;
-    }
+      if(!Array.isArray(data)){
+        wrap.innerHTML = "<div class='empty' style='color:red'>"+JSON.stringify(data)+"</div>";
+        return;
+      }
 
-    data.forEach(b=>{
-      const block=document.createElement("div");
-      block.className="batch";
-      const date=new Date(b.createdAt).toLocaleString();
+      if(data.length === 0){
+        wrap.innerHTML = "<div class='empty'>No active batches</div>";
+        return;
+      }
 
-      block.innerHTML=`
-        <h3>
-          Batch ${b.batchId} — ${date}
-          <button style="float:right" onclick="closeBatch('${b.batchId}')">🛑 Close Batch</button>
-        </h3>
-        <div class="row head">
-          <div>Image</div>
-          <div>Product</div>
-          <div>Godown</div>
-          <div>Locked (All Batches)</div>
-          <div>This Batch</div>
-          <div>Reserved</div>
-          <div>Sellable</div>
-          <div>Free Stock</div>
-          <div>Action</div>
-        </div>
-      `;
+      data.forEach(b=>{
+        const block = document.createElement("div");
+        block.className = "batch";
+        const date = new Date(b.createdAt).toLocaleString();
 
-      const grouped={};
-      b.items.forEach(i=>{
-        if(!grouped[i.productCode]){
-          grouped[i.productCode]={...i};
-        }else{
-          grouped[i.productCode].totalSets+=i.totalSets;
-          grouped[i.productCode].reservedSets+=i.reservedSets;
-          grouped[i.productCode].availableSets+=i.availableSets;
-        }
-      });
-
-      Object.values(grouped).forEach(i=>{
-        let cls="green";
-        if(i.availableSets===0) cls="red";
-        else if(i.availableSets<5) cls="yellow";
-
-        block.innerHTML+=`
-          <div class="row">
-            <div><img src="${i.image||'https://via.placeholder.com/55'}"></div>
-            <div><b>${i.productCode}</b><br><small>${i.productName}</small></div>
-            <div>${i.godown}</div>
-            <div>${i.allocatedAll}</div>
-            <div>${i.totalSets}</div>
-            <div>${i.reservedSets}</div>
-            <div class="${cls}">${i.availableSets}</div>
-            <div>${i.availableForAllocation}</div>
-            <div>
-              <button onclick="editBatch('${b.batchId}','${i.productCode}',${i.totalSets},${i.reservedSets},${i.availableForAllocation})">✏️ Edit</button>
-            </div>
+        block.innerHTML = `
+          <h3>
+            Batch ${b.batchId} — ${date}
+            <button style="float:right" onclick="closeBatch('${b.batchId}')">🛑 Close Batch</button>
+          </h3>
+          <div class="row head">
+            <div>Image</div>
+            <div>Product</div>
+            <div>Godown</div>
+            <div>Locked (All Batches)</div>
+            <div>This Batch</div>
+            <div>Reserved</div>
+            <div>Sellable</div>
+            <div>Free Stock</div>
+            <div>Action</div>
           </div>
         `;
-      });
 
-      wrap.appendChild(block);
+        const grouped = {};
+
+        (b.items || []).forEach(i=>{
+          const code = i.productCode || "";
+          if(!grouped[code]){
+            grouped[code] = {
+              productCode: code,
+              productName: i.productName || "",
+              image: i.image || "",
+              godown: Number(i.godown || 0),
+              allocatedAll: Number(i.allocatedAll || 0),
+              availableForAllocation: Number(i.availableForAllocation || 0),
+              totalSets: Number(i.totalSets || 0),
+              reservedSets: Number(i.reservedSets || 0),
+              availableSets: Number(i.availableSets || 0)
+            };
+          }else{
+            grouped[code].totalSets += Number(i.totalSets || 0);
+            grouped[code].reservedSets += Number(i.reservedSets || 0);
+            grouped[code].availableSets += Number(i.availableSets || 0);
+          }
+        });
+
+        Object.values(grouped).forEach(i=>{
+          let cls="green";
+          if(i.availableSets===0) cls="red";
+          else if(i.availableSets<5) cls="yellow";
+
+          block.innerHTML += `
+            <div class="row">
+              <div><img src="${i.image || 'https://via.placeholder.com/55'}"></div>
+              <div><b>${i.productCode}</b><br><small>${i.productName}</small></div>
+              <div>${i.godown}</div>
+              <div>${i.allocatedAll}</div>
+              <div>${i.totalSets}</div>
+              <div>${i.reservedSets}</div>
+              <div class="${cls}">${i.availableSets}</div>
+              <div>${i.availableForAllocation}</div>
+              <div>
+                <button onclick="editBatch('${b.batchId}','${i.productCode}',${i.totalSets},${i.reservedSets},${i.availableForAllocation})">✏️</button>
+              </div>
+            </div>
+          `;
+        });
+
+        wrap.appendChild(block);
+      });
+    })
+    .catch(err=>{
+      document.getElementById("batches").innerHTML =
+        "<div class='empty' style='color:red'>JS Error: "+err+"</div>";
     });
-  });
 }
 
 function editBatch(batchId, productCode, currentTotal, reserved, free){
@@ -155,7 +181,35 @@ function editBatch(batchId, productCode, currentTotal, reserved, free){
     `Enter NEW total sets for this batch\n\nReserved: ${reserved}\nFree in godown: ${free}`,
     currentTotal
   );
-
   if(v===null) return;
 
-  cons
+  const n = Number(v);
+  if(isNaN(n)) return alert("Invalid number");
+
+  fetch(API + "?action=updateBatchTotalSets"
+    + "&batchId=" + encodeURIComponent(batchId)
+    + "&productCode=" + encodeURIComponent(productCode)
+    + "&newTotal=" + n
+  )
+  .then(r=>r.json())
+  .then(res=>{
+    if(res.status==="success") loadBatches();
+    else alert(res.message || "Error");
+  });
+}
+
+function closeBatch(batchId){
+  if(!confirm("Close this batch?")) return;
+  fetch(API + "?action=closeBatch&batchId=" + encodeURIComponent(batchId))
+    .then(r=>r.json())
+    .then(res=>{
+      if(res.status==="success") loadBatches();
+      else alert(res.message || "Error");
+    });
+}
+
+loadBatches();
+</script>
+
+</body>
+</html>
