@@ -33,7 +33,7 @@ header{
 }
 .row{
   display:grid;
-  grid-template-columns:70px 1.4fr 70px 70px 70px 70px 70px 70px 100px;
+  grid-template-columns:70px 1.5fr 70px 110px 80px 80px 80px 90px 100px;
   padding:10px 16px;
   align-items:center;
   font-size:13px;
@@ -104,11 +104,11 @@ function loadBatches(){
           <div>Image</div>
           <div>Product</div>
           <div>Godown</div>
-          <div>Allocated</div>
-          <div>In Batch</div>
+          <div>Locked (All Batches)</div>
+          <div>This Batch</div>
           <div>Reserved</div>
-          <div>Available</div>
-          <div>Free</div>
+          <div>Sellable</div>
+          <div>Free Stock</div>
           <div>Action</div>
         </div>
       `;
@@ -125,7 +125,6 @@ function loadBatches(){
       });
 
       Object.values(grouped).forEach(i=>{
-        const load=i.totalSets?Math.round((i.reservedSets/i.totalSets)*100):0;
         let cls="green";
         if(i.availableSets===0) cls="red";
         else if(i.availableSets<5) cls="yellow";
@@ -141,7 +140,7 @@ function loadBatches(){
             <div class="${cls}">${i.availableSets}</div>
             <div>${i.availableForAllocation}</div>
             <div>
-              <button onclick="editStock('${b.batchId}','${i.productCode}',${i.availableSets},${i.reservedSets},${i.totalSets})">✏️</button>
+              <button onclick="editStock('${b.batchId}','${i.productCode}',${i.availableSets},${i.reservedSets})">✏️ Edit</button>
             </div>
           </div>
         `;
@@ -152,19 +151,17 @@ function loadBatches(){
   });
 }
 
-function editStock(batchId, productCode, current, reserved, total){
+function editStock(batchId, productCode, current, reserved){
   const newVal = prompt(
-    `Enter new AVAILABLE sets\nReserved: ${reserved}\nTotal in batch: ${total}`,
+    `Enter new SELLABLE sets\nReserved by buyers: ${reserved}`,
     current
   );
   if(newVal===null) return;
 
   const v = Number(newVal);
   if(isNaN(v) || v < reserved){
-    alert("Available cannot be less than reserved");
+    alert("Sellable stock cannot be less than reserved");
     return;
-}
-
   }
 
   fetch(API+"?action=updateBatchAvailable&batchId="+batchId+"&productCode="+productCode+"&newAvailable="+v)
