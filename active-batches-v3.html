@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Supplier – Active Batches</title>
+
+<style>
+body{
+  font-family: Arial, sans-serif;
+  background:#f4f5f7;
+  margin:0;
+}
+header{
+  background:#fff;
+  padding:14px 18px;
+  font-size:18px;
+  font-weight:600;
+  border-bottom:1px solid #ddd;
+}
+.batch{
+  background:#fff;
+  margin:14px;
+  border-radius:8px;
+  border:1px solid #ddd;
+  overflow:hidden;
+}
+.batch h3{
+  margin:0;
+  padding:12px 16px;
+  background:#fafafa;
+  border-bottom:1px solid #eee;
+  font-size:15px;
+}
+.row{
+  display:grid;
+  grid-template-columns:70px 1.5fr 70px 110px 80px 80px 80px 90px 100px;
+  padding:10px 16px;
+  align-items:center;
+  font-size:13px;
+  border-top:1px solid #eee;
+}
+.row.head{
+  font-weight:bold;
+  background:#f9f9f9;
+}
+.row img{
+  width:55px;
+  height:55px;
+  object-fit:cover;
+  border-radius:6px;
+  border:1px solid #ddd;
+}
+.green{color:#1e8f39;font-weight:bold;}
+.yellow{color:#f39c12;font-weight:bold;}
+.red{color:#c0392b;font-weight:bold;}
+button{
+  padding:5px 8px;
+  border:1px solid #aaa;
+  background:#fff;
+  cursor:pointer;
+}
+button:hover{background:#eee;}
+</style>
+</head>
+
+<body>
+
+<header>Active Batches</header>
+<div id="batches"></div>
+
+<script>
+let supplierId = localStorage.getItem("supplierId");
+if(!supplierId){
+  supplierId = prompt("Enter Supplier ID");
+  localStorage.setItem("supplierId", supplierId);
+}
+
+const API = "https://script.google.com/macros/s/AKfycbyBWZeeZbMCpSaOcXeGzXc1o3HMGfko8n2YI4Veu2Ru2CQtyOKN6JNmJMt6ueqBrxxo/exec";
+
+function loadBatches(){
+  fetch(API + "?action=getSupplierActiveBatches&supplierId=" + supplierId)
+  .then(r=>r.json())
+  .then(data=>{
+    const wrap=document.getElementById("batches");
+    wrap.innerHTML="";
+
+    if(!Array.isArray(data)){
+      wrap.innerHTML="<div style='padding:20px;color:red'>"+JSON.stringify(data)+"</div>";
+      return;
+    }
+
+    data.forEach(b=>{
+      const block=document.createElement("div");
+      block.className="batch";
+      const date=new Date(b.createdAt).toLocaleString();
+
+      block.innerHTML=`
+        <h3>
+          Batch ${b.batchId} — ${date}
+          <button style="float:right" onclick="closeBatch('${b.batchId}')">🛑 Close Batch</button>
+        </h3>
+        <div class="row head">
+          <div>Image</div>
+          <div>Product</div>
+          <div>Godown</div>
+          <div>Locked (All Batches)</div>
+          <div>This Batch</div>
+          <div>Reserved</div>
+          <div>Sellable</div>
+          <div>Free Stock</div>
+          <div>Action</div>
+        </div>
+      `;
+
+      const grouped={};
+      b.items.forEach(i=>{
+        if(!grouped[i.productCode]){
+          grouped[i.productCode]={...i};
+        }else{
+          grouped[i.productCode].totalSets+=i.totalSets;
+          grouped[i.productCode].reservedSets+=i.reservedSets;
+          grouped[i.productCode].availableSets+=i.availableSets;
+        }
+      });
+
+      Object.values(grouped).forEach(i=>{
+        let cls="green";
+        if(i.availableSets===0) cls="red";
+        else if(i.availableSets<5) cls="yellow";
+
+        block.innerHTML+=`
+          <div class="row">
+            <div><img src="${i.image||'https://via.placeholder.com/55'}"></div>
+            <div><b>${i.productCode}</b><br><small>${i.productName}</small></div>
+            <div>${i.godown}</div>
+            <div>${i.allocatedAll}</div>
+            <div>${i.totalSets}</div>
+            <div>${i.reservedSets}</div>
+            <div class="${cls}">${i.availableSets}</div>
+            <div>${i.availableForAllocation}</div>
+            <div>
+              <button onclick="editBatch('${b.batchId}','${i.productCode}',${i.totalSets},${i.reservedSets},${i.availableForAllocation})">✏️ Edit</button>
+            </div>
+          </div>
+        `;
+      });
+
+      wrap.appendChild(block);
+    });
+  });
+}
+
+function editBatch(batchId, productCode, currentTotal, reserved, free){
+  const v = prompt(
+    `Enter NEW total sets for this batch\n\nReserved: ${reserved}\nFree in godown: ${free}`,
+    currentTotal
+  );
+
+  if(v===null) return;
+
+  cons
