@@ -38,10 +38,7 @@ button:hover{background:#eee}
 }
 .buyerRow.head{font-weight:bold;background:#eee}
 
-input.qty{
-  width:60px;
-  padding:3px;
-}
+input.qty{width:60px;padding:3px}
 </style>
 </head>
 
@@ -59,7 +56,7 @@ if(!supplierId){
   localStorage.setItem("supplierId",supplierId);
 }
 
-/* ================= LOAD BATCHES ================= */
+/* ========== LOAD BATCHES ========== */
 function load(){
 fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
 .then(r=>r.json())
@@ -109,7 +106,7 @@ fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
 });
 }
 
-/* ================= EDIT BATCH SELLABLE ================= */
+/* ========== EDIT SELLABLE ========== */
 function editStock(batch,code,avail,res){
  const v=prompt("New SELLABLE sets",avail);
  if(v==null) return;
@@ -118,7 +115,7 @@ function editStock(batch,code,avail,res){
  .then(()=>load());
 }
 
-/* ================= BUYER RESERVATIONS ================= */
+/* ========== BUYERS ========== */
 function loadBuyers(batch,code){
  fetch(API+`?action=getReservationsForBatchProduct&batchId=${batch}&productCode=${code}`)
  .then(r=>r.json())
@@ -140,10 +137,8 @@ function loadBuyers(batch,code){
     h+=`
     <div class="buyerRow">
       <div>${b.buyerId}</div>
-      <div>${b.requestedSets}</div>
-      <div>
-        <input class="qty" id="qty-${b.basketId}-${code}" value="${b.approvedSets}">
-      </div>
+      <div>${b.sets}</div>
+      <div><input class="qty" id="qty-${b.basketId}-${code}" value="${b.sets}"></div>
       <div>${b.status}</div>
       <div>
         <button onclick="updateQty('${b.basketId}','${batch}','${code}')">Update</button>
@@ -158,36 +153,32 @@ function loadBuyers(batch,code){
  });
 }
 
-/* ================= INLINE QTY UPDATE (FIXED) ================= */
+/* ========== UPDATE QTY ========== */
 function updateQty(basket,batch,code){
   const v = Number(document.getElementById(`qty-${basket}-${code}`).value);
-  if(isNaN(v) || v < 0) return alert("Invalid qty");
+  if(isNaN(v)||v<=0) return alert("Invalid qty");
 
-  fetch(API + `?action=updateApprovedBasketQty`
-      + `&basketId=${basket}`
-      + `&batchId=${batch}`
-      + `&productCode=${code}`
-      + `&sets=${v}`)
+  fetch(API+`?action=updateBasketItemQty&basketId=${basket}&batchId=${batch}&productCode=${code}&sets=${v}`)
   .then(r=>r.json())
   .then(res=>{
     if(res.status==="success") load();
-    else alert(res.message || "Error");
+    else alert(res.message);
   });
 }
 
-/* ================= APPROVE ================= */
+/* ========== APPROVE ========== */
 function approve(id){
  fetch(API+"?action=approveBasket&basketId="+id).then(()=>load());
 }
 
-/* ================= REJECT ================= */
+/* ========== REJECT ========== */
 function reject(id,batch,code){
  if(!confirm("Reject buyer & return stock?")) return;
  fetch(API+`?action=rejectBasketItem&basketId=${id}&batchId=${batch}&productCode=${code}`)
  .then(()=>load());
 }
 
-/* ================= CLOSE BATCH ================= */
+/* ========== CLOSE BATCH ========== */
 function closeBatch(b){
  if(!confirm("Close this batch?")) return;
  fetch(API+"?action=closeBatch&batchId="+b).then(()=>load());
