@@ -33,7 +33,7 @@ header{
 }
 .row{
   display:grid;
-  grid-template-columns:70px 1.4fr 80px 80px 80px 80px 70px 100px;
+  grid-template-columns:70px 1.4fr 70px 70px 70px 70px 70px 70px 100px;
   padding:10px 16px;
   align-items:center;
   font-size:13px;
@@ -58,9 +58,8 @@ button{
   border:1px solid #aaa;
   background:#fff;
   cursor:pointer;
-  margin-right:4px;
 }
-button:hover{background:#f0f0f0;}
+button:hover{background:#eee;}
 </style>
 
 </head>
@@ -80,27 +79,20 @@ if(!supplierId){
 const API = "https://script.google.com/macros/s/AKfycbyBWZeeZbMCpSaOcXeGzXc1o3HMGfko8n2YI4Veu2Ru2CQtyOKN6JNmJMt6ueqBrxxo/exec";
 
 function loadBatches(){
-fetch(API + "?action=getSupplierActiveBatches&supplierId=" + supplierId)
-  .then(r => r.json())
-  .then(data => {
-
-    const wrap = document.getElementById("batches");
+  fetch(API + "?action=getSupplierActiveBatches&supplierId=" + supplierId)
+  .then(r=>r.json())
+  .then(data=>{
+    const wrap=document.getElementById("batches");
     wrap.innerHTML="";
 
     if(!Array.isArray(data)){
-      wrap.innerHTML = "<div style='padding:20px;color:red'>API Error: "+JSON.stringify(data)+"</div>";
-      return;
-    }
-
-    if(data.length===0){
-      wrap.innerHTML="<div style='padding:20px'>No active batches</div>";
+      wrap.innerHTML="<div style='padding:20px;color:red'>"+JSON.stringify(data)+"</div>";
       return;
     }
 
     data.forEach(b=>{
       const block=document.createElement("div");
       block.className="batch";
-
       const date=new Date(b.createdAt).toLocaleString();
 
       block.innerHTML=`
@@ -112,10 +104,11 @@ fetch(API + "?action=getSupplierActiveBatches&supplierId=" + supplierId)
           <div>Image</div>
           <div>Product</div>
           <div>Godown</div>
+          <div>Allocated</div>
           <div>In Batch</div>
           <div>Reserved</div>
           <div>Available</div>
-          <div>Load%</div>
+          <div>Free</div>
           <div>Action</div>
         </div>
       `;
@@ -142,12 +135,13 @@ fetch(API + "?action=getSupplierActiveBatches&supplierId=" + supplierId)
             <div><img src="${i.image||'https://via.placeholder.com/55'}"></div>
             <div>${i.productName}</div>
             <div>${i.godown}</div>
+            <div>${i.allocatedAll}</div>
             <div>${i.totalSets}</div>
             <div>${i.reservedSets}</div>
             <div class="${cls}">${i.availableSets}</div>
-            <div>${load}%</div>
+            <div>${i.availableForAllocation}</div>
             <div>
-              <button onclick="editStock('${b.batchId}','${i.productCode}',${i.availableSets})">✏️</button>
+              <button onclick="editStock('${b.batchId}','${i.productCode}',${i.availableSets},${i.reservedSets},${i.totalSets})">✏️</button>
             </div>
           </div>
         `;
@@ -155,22 +149,27 @@ fetch(API + "?action=getSupplierActiveBatches&supplierId=" + supplierId)
 
       wrap.appendChild(block);
     });
-
   });
 }
 
-function editStock(batchId, productCode, current){
-  const newVal = prompt("Enter new available sets", current);
+function editStock(batchId, productCode, current, reserved, total){
+  const newVal = prompt(
+    `Enter new AVAILABLE sets\nReserved: ${reserved}\nTotal in batch: ${total}`,
+    current
+  );
   if(newVal===null) return;
 
-  fetch(API+"?action=updateBatchAvailable&batchId="+batchId+"&productCode="+productCode+"&newAvailable="+newVal)
+  const v = Number(newVal);
+  if(isNaN(v) || v<reserved || v>total){
+    alert("Available must be between Reserved and Total");
+    return;
+  }
+
+  fetch(API+"?action=updateBatchAvailable&batchId="+batchId+"&productCode="+productCode+"&newAvailable="+v)
   .then(r=>r.json())
   .then(res=>{
-    if(res.status==="success"){
-      loadBatches();
-    }else{
-      alert(res.message || "Error");
-    }
+    if(res.status==="success") loadBatches();
+    else alert(res.message || "Error");
   });
 }
 
@@ -179,11 +178,8 @@ function closeBatch(batchId){
   fetch(API+"?action=closeBatch&batchId="+batchId)
   .then(r=>r.json())
   .then(res=>{
-    if(res.status==="success"){
-      loadBatches();
-    }else{
-      alert(res.message || "Error");
-    }
+    if(res.status==="success") loadBatches();
+    else alert(res.message || "Error");
   });
 }
 
