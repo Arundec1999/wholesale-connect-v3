@@ -13,7 +13,6 @@ header{background:#fff;padding:14px 18px;font-size:18px;font-weight:600;border-b
   border-bottom:1px solid #eee;
   display:flex;justify-content:space-between;align-items:flex-start
 }
-
 .closeWrap{display:flex;flex-direction:column;align-items:flex-end}
 .closeMsg{margin-top:4px;font-size:12px;color:#c0392b;font-weight:600}
 
@@ -23,7 +22,6 @@ header{background:#fff;padding:14px 18px;font-size:18px;font-weight:600;border-b
   padding:10px 16px;border-top:1px solid #eee;align-items:center;font-size:13px
 }
 .row.head{font-weight:bold;background:#f9f9f9}
-
 .row img{width:55px;height:55px;object-fit:cover;border-radius:6px;border:1px solid #ddd}
 
 .green{color:#1e8f39;font-weight:bold}
@@ -34,18 +32,13 @@ button{padding:4px 8px;border:1px solid #aaa;background:#fff;cursor:pointer}
 button:hover{background:#eee}
 button[disabled]{background:#eee;color:#aaa;cursor:not-allowed}
 
-.buyerBox{
-  background:#fafafa;margin:8px 16px 12px 16px;
-  border:1px solid #ddd;border-radius:6px
-}
-
+.buyerBox{background:#fafafa;margin:8px 16px 12px;border:1px solid #ddd;border-radius:6px}
 .buyerRow{
   display:grid;
   grid-template-columns:120px 90px 90px 90px 240px;
   padding:6px 10px;font-size:12px;border-top:1px solid #eee;align-items:center
 }
 .buyerRow.head{font-weight:bold;background:#eee}
-
 input.qty{width:60px;padding:3px}
 </style>
 </head>
@@ -64,20 +57,16 @@ if(!supplierId){
   localStorage.setItem("supplierId",supplierId);
 }
 
-let batchSnapshot={};
-
-/* ================= FULL LOAD ================= */
-function load(){
+/* ---------- INITIAL LOAD (once) ---------- */
 fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
 .then(r=>r.json())
-.then(data=>{
+.then(drawPage);
+
+function drawPage(data){
   const wrap=document.getElementById("batches");
   wrap.innerHTML="";
-  batchSnapshot={};
 
   data.forEach(b=>{
-    batchSnapshot[b.batchId]=b;
-
     const block=document.createElement("div");
     block.className="batch";
     block.id="batch-"+b.batchId;
@@ -87,7 +76,6 @@ fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
         <span>Batch ${b.batchId}</span>
         <span class="closeWrap" id="closeWrap-${b.batchId}"></span>
       </h3>
-
       <div class="row head">
         <div>Img</div><div>Product</div><div>Godown</div>
         <div>Locked</div><div>This Batch</div><div>Reserved</div><div>Sellable</div><div>Edit</div>
@@ -95,119 +83,111 @@ fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
     `;
 
     b.items.forEach(i=>{
-      let cls=i.availableSets==0?"red":(i.availableSets<5?"yellow":"green");
-
       block.innerHTML+=`
-      <div class="row">
-        <div><img src="${i.image||'https://via.placeholder.com/55'}"></div>
+      <div class="row" id="row-${b.batchId}-${i.productCode}">
+        <div><img src="${i.image||''}"></div>
         <div><b>${i.productCode}</b><br>${i.productName}</div>
-        <div>${i.godown}</div>
-        <div>${i.allocatedAll}</div>
-        <div>${i.totalSets}</div>
-        <div>${i.reservedSets}</div>
-        <div class="${cls}">${i.availableSets}</div>
-        <div>
-          <button onclick="editStock('${b.batchId}','${i.productCode}',${i.availableSets},${i.reservedSets})">✏️</button>
-        </div>
+        <div class="godown">${i.godown}</div>
+        <div class="locked">${i.allocatedAll}</div>
+        <div class="total">${i.totalSets}</div>
+        <div class="reserved">${i.reservedSets}</div>
+        <div class="available">${i.availableSets}</div>
+        <div><button onclick="editStock('${b.batchId}','${i.productCode}')">✏️</button></div>
       </div>
-      <div id="buyers-${b.batchId}-${i.productCode}"></div>
-      `;
-
-      loadBuyers(b.batchId,i.productCode);
+      <div id="buyers-${b.batchId}-${i.productCode}"></div>`;
     });
 
     wrap.appendChild(block);
   });
-});
+
+  refresh(); // first live pull
 }
 
-/* ================= BUYERS ================= */
+/* ---------- LIVE REFRESH LOOP ---------- */
+setInterval(refresh,8000);
+
+function refresh(){
+  fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
+  .then(r=>r.json())
+  .then(updatePage);
+}
+
+function updatePage(data){
+  data.forEach(b=>{
+    let hasOpen=false;
+
+    b.items.forEach(i=>{
+      const row=document.getElementById(`row-${b.batchId}-${i.productCode}`);
+      if(!row) return;
+
+      row.querySelector(".godown").innerText=i.godown;
+      row.querySelector(".locked").innerText=i.allocatedAll;
+      row.querySelector(".total").innerText=i.totalSets;
+      row.querySelector(".reserved").innerText=i.reservedSets;
+      row.querySelector(".available").innerText=i.availableSets;
+
+      loadBuyers(b.batchId,i.productCode).then(open=>{
+        if(open) hasOpen=true;
+        updateClose(b.batchId,hasOpen);
+      });
+    });
+  });
+}
+
+/* ---------- BUYERS ---------- */
 function loadBuyers(batch,code){
- fetch(API+`?action=getReservationsForBatchProduct&batchId=${batch}&productCode=${code}`)
+ return fetch(API+`?action=getReservationsForBatchProduct&batchId=${batch}&productCode=${code}`)
  .then(r=>r.json())
  .then(res=>{
-  if(res.status!=="success") return;
-  const div=document.getElementById(`buyers-${batch}-${code}`);
+   const div=document.getElementById(`buyers-${batch}-${code}`);
+   if(res.data.length===0){div.innerHTML="";return false;}
 
-  if(res.data.length===0){
-    div.innerHTML="";
-    updateCloseButton(batch);
-    return;
-  }
+   let open=false;
+   let h=`<div class="buyerBox">
+   <div class="buyerRow head"><div>Buyer</div><div>Req</div><div>Appr</div><div>Status</div><div>Action</div></div>`;
 
-  let h=`<div class="buyerBox">
-    <div class="buyerRow head">
-      <div>Buyer</div><div>Requested</div><div>Approved</div><div>Status</div><div>Action</div>
-    </div>`;
+   res.data.forEach(b=>{
+     if(b.status==="OPEN") open=true;
+     h+=`
+     <div class="buyerRow">
+       <div>${b.buyerId}</div>
+       <div>${b.requestedSets}</div>
+       <div><input class="qty" id="qty-${b.basketId}-${code}" value="${b.approvedSets}"></div>
+       <div>${b.status}</div>
+       <div>
+         <button onclick="updateQty('${b.basketId}','${batch}','${code}')">Update</button>
+         <button onclick="approve('${b.basketId}')">Approve</button>
+         <button onclick="reject('${b.basketId}','${batch}','${code}')">Reject</button>
+       </div>
+     </div>`;
+   });
 
-  res.data.forEach(b=>{
-    h+=`
-    <div class="buyerRow">
-      <div>${b.buyerId}</div>
-      <div>${b.requestedSets}</div>
-      <div><input class="qty" id="qty-${b.basketId}-${code}" value="${b.approvedSets}"></div>
-      <div>${b.status}</div>
-      <div>
-        <button onclick="updateQty('${b.basketId}','${batch}','${code}')">Update</button>
-        <button onclick="approve('${b.basketId}')">Approve</button>
-        <button onclick="reject('${b.basketId}','${batch}','${code}')">Reject</button>
-      </div>
-    </div>`;
-  });
-
-  div.innerHTML=h+"</div>";
-  updateCloseButton(batch);
+   div.innerHTML=h+"</div>";
+   return open;
  });
 }
 
-/* ================= CLOSE BUTTON ================= */
-function updateCloseButton(batchId){
-  const wrap=document.getElementById("closeWrap-"+batchId);
-  if(!wrap) return;
-
-  let hasOpen=false;
-  document.querySelectorAll(`[id^='buyers-${batchId}-']`).forEach(d=>{
-    if(d.innerText.includes("OPEN")) hasOpen=true;
-  });
-
-  if(hasOpen){
-    wrap.innerHTML=`
-      <button disabled>Close Batch</button>
-      <div class="closeMsg">Please approve or reject all buyer requests to close this batch.</div>`;
-  }else{
-    wrap.innerHTML=`<button onclick="closeBatch('${batchId}')">Close Batch</button>`;
-  }
+/* ---------- CLOSE BUTTON ---------- */
+function updateClose(batch,hasOpen){
+ const wrap=document.getElementById("closeWrap-"+batch);
+ if(hasOpen){
+   wrap.innerHTML=`<button disabled>Close Batch</button>
+   <div class="closeMsg">Please approve or reject all buyer requests to close this batch.</div>`;
+ }else{
+   wrap.innerHTML=`<button onclick="closeBatch('${batch}')">Close Batch</button>`;
+ }
 }
 
-/* ================= ACTIONS ================= */
-function editStock(batch,code,avail,res){
- const v=prompt("New SELLABLE sets",avail);
- if(v==null) return;
- if(Number(v)<res) return alert("Below reserved!");
- fetch(API+`?action=updateBatchAvailable&batchId=${batch}&productCode=${code}&newAvailable=${v}`).then(()=>{refreshBuyers();load();});
+/* ---------- ACTIONS ---------- */
+function updateQty(b,batch,code){
+ const v=document.getElementById(`qty-${b}-${code}`).value;
+ fetch(API+`?action=updateBasketItemQty&basketId=${b}&batchId=${batch}&productCode=${code}&sets=${v}`).then(refresh);
 }
-function updateQty(basket,batch,code){
- const v=Number(document.getElementById(`qty-${basket}-${code}`).value);
- fetch(API+`?action=updateBasketItemQty&basketId=${basket}&batchId=${batch}&productCode=${code}&sets=${v}`).then(()=>{refreshBuyers();load();});
-}
-function approve(id){ fetch(API+"?action=approveBasket&basketId="+id).then(()=>{refreshBuyers();load();}); }
-function reject(id,batch,code){ fetch(API+`?action=rejectBasketItem&basketId=${id}&batchId=${batch}&productCode=${code}`).then(()=>{refreshBuyers();load();}); }
-function closeBatch(id){ if(confirm("Close this batch?")) fetch(API+"?action=closeBatch&batchId="+id).then(()=>load()); }
-
-/* ================= LIVE REFRESH ================= */
-function refreshBuyers(){
-  document.querySelectorAll("[id^='buyers-']").forEach(div=>{
-    const p=div.id.replace("buyers-","").split("-");
-    loadBuyers(p[0],p.slice(1).join("-"));
-  });
-}
-
-setInterval(refreshBuyers,10000);
-setInterval(load,30000);
-
-load();
+function approve(id){fetch(API+"?action=approveBasket&basketId="+id).then(refresh);}
+function reject(id,batch,code){fetch(API+`?action=rejectBasketItem&basketId=${id}&batchId=${batch}&productCode=${code}`).then(refresh);}
+function editStock(){}
+function closeBatch(id){if(confirm("Close batch?"))fetch(API+"?action=closeBatch&batchId="+id).then(()=>location.reload());}
 </script>
 
 </body>
 </html>
-
