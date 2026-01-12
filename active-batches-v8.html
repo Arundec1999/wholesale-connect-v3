@@ -86,7 +86,9 @@ function drawPage(data){
         <div class="total">${i.totalSets}</div>
         <div class="reserved">${i.reservedSets}</div>
         <div class="available">${i.availableSets}</div>
-        <div></div>
+        <div>
+          <button onclick="editSellable('${b.batchId}','${i.productCode}',${i.availableSets},${i.reservedSets})">✏️</button>
+        </div>
       </div>
       <div id="buyers-${b.batchId}-${i.productCode}"></div>`;
     });
@@ -114,6 +116,7 @@ function updatePage(data){
 
     row.querySelector(".reserved").innerText=i.reservedSets;
     row.querySelector(".available").innerText=i.availableSets;
+    row.querySelector(".total").innerText=i.totalSets;
 
     loadBuyers(b.batchId,i.productCode).then(open=>{
       if(open) hasOpen=true;
@@ -170,6 +173,14 @@ function updateClose(batch,hasOpen){
 }
 
 /* ---------- ACTIONS ---------- */
+function editSellable(batch,code,avail,res){
+ const v=prompt("New SELLABLE sets",avail);
+ if(v===null) return;
+ if(Number(v)<res) return alert("Cannot go below reserved");
+ fetch(API+`?action=updateBatchAvailable&batchId=${batch}&productCode=${code}&newAvailable=${v}`)
+ .then(()=>alert("Sellable stock updated")).then(refresh);
+}
+
 function updateQty(b,batch,code){
  fetch(API+`?action=updateBasketItemQty&basketId=${b}&batchId=${batch}&productCode=${code}&sets=${document.getElementById('qty-'+b+'-'+code).value}`)
  .then(()=>alert("Approved sets updated")).then(refresh);
