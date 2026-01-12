@@ -13,7 +13,6 @@ header{background:#fff;padding:14px 18px;font-size:18px;font-weight:600;border-b
   border-bottom:1px solid #eee;
   display:flex;justify-content:space-between;align-items:flex-start
 }
-
 .closeWrap{display:flex;flex-direction:column;align-items:flex-end}
 .closeMsg{margin-top:4px;font-size:12px;color:#c0392b;font-weight:600}
 
@@ -23,29 +22,18 @@ header{background:#fff;padding:14px 18px;font-size:18px;font-weight:600;border-b
   padding:10px 16px;border-top:1px solid #eee;align-items:center;font-size:13px
 }
 .row.head{font-weight:bold;background:#f9f9f9}
-
 .row img{width:55px;height:55px;object-fit:cover;border-radius:6px;border:1px solid #ddd}
 
-.green{color:#1e8f39;font-weight:bold}
-.red{color:#c0392b;font-weight:bold}
-.yellow{color:#f39c12;font-weight:bold}
-
 button{padding:4px 8px;border:1px solid #aaa;background:#fff;cursor:pointer}
-button:hover{background:#eee}
 button[disabled]{background:#eee;color:#aaa;cursor:not-allowed}
 
-.buyerBox{
-  background:#fafafa;margin:8px 16px 12px 16px;
-  border:1px solid #ddd;border-radius:6px
-}
-
+.buyerBox{background:#fafafa;margin:8px 16px 12px;border:1px solid #ddd;border-radius:6px}
 .buyerRow{
   display:grid;
   grid-template-columns:120px 90px 90px 90px 240px;
   padding:6px 10px;font-size:12px;border-top:1px solid #eee;align-items:center
 }
 .buyerRow.head{font-weight:bold;background:#eee}
-
 input.qty{width:60px;padding:3px}
 </style>
 </head>
@@ -57,115 +45,109 @@ input.qty{width:60px;padding:3px}
 
 <script>
 const API="https://script.google.com/macros/s/AKfycbyBWZeeZbMCpSaOcXeGzXc1o3HMGfko8n2YI4Veu2Ru2CQtyOKN6JNmJMt6ueqBrxxo/exec";
+let supplierId=localStorage.getItem("supplierId")||prompt("Enter Supplier ID");
+localStorage.setItem("supplierId",supplierId);
 
-let supplierId=localStorage.getItem("supplierId");
-if(!supplierId){
-  supplierId=prompt("Enter Supplier ID");
-  localStorage.setItem("supplierId",supplierId);
-}
+let editingInput=null;
+document.addEventListener("focusin",e=>{ if(e.target.classList.contains("qty")) editingInput=e.target.id; });
+document.addEventListener("focusout",()=> editingInput=null);
 
-/* Track per batch */
-const batchState = {}; // { batchId : { pending, hasOpen } }
-
-function load(){
+/* ================= INITIAL DRAW ================= */
 fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
-.then(r=>r.json())
-.then(data=>{
+.then(r=>r.json()).then(drawPage);
+
+function drawPage(data){
   const wrap=document.getElementById("batches");
   wrap.innerHTML="";
 
   data.forEach(b=>{
-    batchState[b.batchId] = {
-      pending: b.items.length,
-      hasOpen: false
-    };
-
     const block=document.createElement("div");
     block.className="batch";
+    block.id="batch-"+b.batchId;
 
     block.innerHTML=`
       <h3>
         <span>Batch ${b.batchId}</span>
-        <span class="closeWrap" id="closeWrap-${b.batchId}">
-          <button disabled>Close Batch</button>
-          <div class="closeMsg">Checking buyer approvals…</div>
-        </span>
+        <span class="closeWrap" id="closeWrap-${b.batchId}"></span>
       </h3>
-
       <div class="row head">
         <div>Img</div><div>Product</div><div>Godown</div>
         <div>Locked</div><div>This Batch</div><div>Reserved</div><div>Sellable</div><div>Edit</div>
-      </div>
-    `;
+      </div>`;
 
     b.items.forEach(i=>{
-      let cls=i.availableSets==0?"red":(i.availableSets<5?"yellow":"green");
-
       block.innerHTML+=`
-      <div class="row">
-        <div><img src="${i.image||'https://via.placeholder.com/55'}"></div>
+      <div class="row" id="row-${b.batchId}-${i.productCode}">
+        <div><img src="${i.image||''}"></div>
         <div><b>${i.productCode}</b><br>${i.productName}</div>
-        <div>${i.godown}</div>
-        <div>${i.allocatedAll}</div>
-        <div>${i.totalSets}</div>
-        <div>${i.reservedSets}</div>
-        <div class="${cls}">${i.availableSets}</div>
-        <div>
-          <button onclick="editStock('${b.batchId}','${i.productCode}',${i.availableSets},${i.reservedSets})">✏️</button>
-        </div>
+        <div class="godown">${i.godown}</div>
+        <div class="locked">${i.allocatedAll}</div>
+        <div class="total">${i.totalSets}</div>
+        <div class="reserved">${i.reservedSets}</div>
+        <div class="available">${i.availableSets}</div>
+        <div><button onclick="editSellable('${b.batchId}','${i.productCode}')">✏️</button></div>
       </div>
-      <div id="buyers-${b.batchId}-${i.productCode}"></div>
-      `;
-
-      loadBuyers(b.batchId,i.productCode);
+      <div id="buyers-${b.batchId}-${i.productCode}"></div>`;
     });
 
     wrap.appendChild(block);
   });
-});
+
+  refresh();
 }
 
-function finalizeBatchCheck(batchId){
-  const state=batchState[batchId];
-  if(state.pending>0) return;
+/* ================= LIVE REFRESH ================= */
+setInterval(refresh,8000);
 
-  const wrap=document.getElementById("closeWrap-"+batchId);
-  if(state.hasOpen){
-    wrap.innerHTML=`
-      <button disabled>Close Batch</button>
-      <div class="closeMsg">Please approve or reject all buyer requests to close this batch.</div>`;
-  }else{
-    wrap.innerHTML=`<button onclick="closeBatch('${batchId}')">Close Batch</button>`;
-  }
+function refresh(){
+ fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
+ .then(r=>r.json()).then(updatePage);
 }
 
+function updatePage(data){
+ data.forEach(b=>{
+  let hasOpen=false;
+
+  b.items.forEach(i=>{
+    const row=document.getElementById(`row-${b.batchId}-${i.productCode}`);
+    if(!row) return;
+
+    row.querySelector(".godown").innerText=i.godown;
+    row.querySelector(".locked").innerText=i.allocatedAll;
+    row.querySelector(".total").innerText=i.totalSets;
+    row.querySelector(".reserved").innerText=i.reservedSets;
+    row.querySelector(".available").innerText=i.availableSets;
+
+    loadBuyers(b.batchId,i.productCode).then(open=>{
+      if(open) hasOpen=true;
+      updateClose(b.batchId,hasOpen);
+    });
+  });
+ });
+}
+
+/* ================= BUYERS ================= */
 function loadBuyers(batch,code){
- fetch(API+`?action=getReservationsForBatchProduct&batchId=${batch}&productCode=${code}`)
- .then(r=>r.json())
- .then(res=>{
+ return fetch(API+`?action=getReservationsForBatchProduct&batchId=${batch}&productCode=${code}`)
+ .then(r=>r.json()).then(res=>{
   const div=document.getElementById(`buyers-${batch}-${code}`);
-  if(res.status!=="success"){ batchState[batch].pending--; finalizeBatchCheck(batch); return; }
+  if(res.data.length===0){div.innerHTML="";return false;}
 
-  if(res.data.length===0){
-    div.innerHTML="";
-    batchState[batch].pending--;
-    finalizeBatchCheck(batch);
-    return;
-  }
-
+  let open=false;
   let h=`<div class="buyerBox">
-    <div class="buyerRow head">
-      <div>Buyer</div><div>Requested</div><div>Approved</div><div>Status</div><div>Action</div>
-    </div>`;
+  <div class="buyerRow head"><div>Buyer</div><div>Req</div><div>Appr</div><div>Status</div><div>Action</div></div>`;
 
   res.data.forEach(b=>{
-    if(b.status==="OPEN") batchState[batch].hasOpen=true;
+    if(b.status==="OPEN") open=true;
+
+    const id=`qty-${b.basketId}-${code}`;
+    const val = (editingInput===id) ? document.getElementById(id)?.value : b.approvedSets;
 
     h+=`
     <div class="buyerRow">
       <div>${b.buyerId}</div>
       <div>${b.requestedSets}</div>
-      <div><input class="qty" id="qty-${b.basketId}-${code}" value="${b.approvedSets}"></div>
+      <div><input class="qty" id="${id}" value="${val}"></div>
       <div>${b.status}</div>
       <div>
         <button onclick="updateQty('${b.basketId}','${batch}','${code}')">Update</button>
@@ -176,39 +158,53 @@ function loadBuyers(batch,code){
   });
 
   div.innerHTML=h+"</div>";
-  batchState[batch].pending--;
-  finalizeBatchCheck(batch);
+  return open;
  });
 }
 
-/* Original actions preserved */
-function editStock(batch,code,avail,res){
+/* ================= CLOSE ================= */
+function updateClose(batch,hasOpen){
+ const wrap=document.getElementById("closeWrap-"+batch);
+ if(hasOpen){
+   wrap.innerHTML=`<button disabled>Close Batch</button>
+   <div class="closeMsg">Please approve or reject all buyer requests to close this batch.</div>`;
+ }else{
+   wrap.innerHTML=`<button onclick="closeBatch('${batch}')">Close Batch</button>`;
+ }
+}
+
+/* ================= ACTIONS ================= */
+function editSellable(batch, code){
+ const row=document.getElementById(`row-${batch}-${code}`);
+ const avail=row.querySelector(".available").innerText;
+ const res=row.querySelector(".reserved").innerText;
+
  const v=prompt("New SELLABLE sets",avail);
- if(v==null) return;
- if(Number(v)<res) return alert("Below reserved!");
- fetch(API+`?action=updateBatchAvailable&batchId=${batch}&productCode=${code}&newAvailable=${v}`).then(()=>load());
+ if(v===null) return;
+ if(Number(v)<Number(res)) return alert("Below reserved");
+
+ fetch(API+`?action=updateBatchAvailable&batchId=${batch}&productCode=${code}&newAvailable=${v}`)
+ .then(()=>refresh());
 }
 
-function updateQty(basket,batch,code){
- const v=Number(document.getElementById(`qty-${basket}-${code}`).value);
- if(isNaN(v)||v<0) return alert("Invalid qty");
- fetch(API+`?action=updateBasketItemQty&basketId=${basket}&batchId=${batch}&productCode=${code}&sets=${v}`)
- .then(()=>load());
+function updateQty(b,batch,code){
+ const v=document.getElementById(`qty-${b}-${code}`).value;
+ fetch(API+`?action=updateBasketItemQty&basketId=${b}&batchId=${batch}&productCode=${code}&sets=${v}`)
+ .then(()=>refresh());
 }
 
-function approve(id){ fetch(API+"?action=approveBasket&basketId="+id).then(()=>load()); }
+function approve(id){fetch(API+"?action=approveBasket&basketId="+id).then(()=>refresh());}
 
 function reject(id,batch,code){
  if(!confirm("Reject buyer & return stock?")) return;
- fetch(API+`?action=rejectBasketItem&basketId=${id}&batchId=${batch}&productCode=${code}`).then(()=>load());
+ fetch(API+`?action=rejectBasketItem&basketId=${id}&batchId=${batch}&productCode=${code}`)
+ .then(()=>refresh());
 }
 
 function closeBatch(id){
- if(!confirm("Close this batch?")) return;
- fetch(API+"?action=closeBatch&batchId="+id).then(()=>load());
+ if(!confirm("Close this batch?\nUnsold stock will return to godown.")) return;
+ fetch(API+"?action=closeBatch&batchId="+id).then(()=>location.reload());
 }
-
-load();
 </script>
 
 </body>
