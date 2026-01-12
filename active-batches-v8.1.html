@@ -64,7 +64,8 @@ if(!supplierId){
   localStorage.setItem("supplierId",supplierId);
 }
 
-const batchOpenMap = {};   // 🔥 NEW: tracks OPEN buyers per batch
+/* 🔥 NEW: Track open buyers per batch */
+const batchHasOpen = {};
 
 function load(){
 fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
@@ -72,10 +73,11 @@ fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
 .then(data=>{
   const wrap=document.getElementById("batches");
   wrap.innerHTML="";
-  Object.keys(batchOpenMap).forEach(k=>delete batchOpenMap[k]);
+
+  Object.keys(batchHasOpen).forEach(k=>delete batchHasOpen[k]);
 
   data.forEach(b=>{
-    batchOpenMap[b.batchId] = 0;   // initialize
+    batchHasOpen[b.batchId] = false;
 
     const block=document.createElement("div");
     block.className="batch";
@@ -84,7 +86,7 @@ fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
     block.innerHTML=`
       <h3>
         <span>Batch ${b.batchId}</span>
-        <span class="closeWrap" id="close-${b.batchId}">
+        <span class="closeWrap" id="closeWrap-${b.batchId}">
           <button disabled>Close Batch</button>
           <div class="closeMsg">Checking buyer approvals…</div>
         </span>
@@ -123,11 +125,11 @@ fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
 });
 }
 
-function updateCloseButton(batchId){
-  const wrap=document.getElementById("close-"+batchId);
+function updateClose(batchId){
+  const wrap=document.getElementById("closeWrap-"+batchId);
   if(!wrap) return;
 
-  if(batchOpenMap[batchId] > 0){
+  if(batchHasOpen[batchId]){
     wrap.innerHTML=`
       <button disabled>Close Batch</button>
       <div class="closeMsg">Please approve or reject all buyer requests to close this batch.</div>
@@ -143,7 +145,7 @@ function loadBuyers(batch,code){
  .then(res=>{
   if(res.status!=="success") return;
   const div=document.getElementById(`buyers-${batch}-${code}`);
-  if(res.data.length===0){ div.innerHTML=""; updateCloseButton(batch); return; }
+  if(res.data.length===0){ div.innerHTML=""; updateClose(batch); return; }
 
   let h=`<div class="buyerBox">
     <div class="buyerRow head">
@@ -151,7 +153,7 @@ function loadBuyers(batch,code){
     </div>`;
 
   res.data.forEach(b=>{
-    if(b.status==="OPEN") batchOpenMap[batch]++;
+    if(b.status==="OPEN") batchHasOpen[batch] = true;
 
     h+=`
     <div class="buyerRow">
@@ -168,16 +170,36 @@ function loadBuyers(batch,code){
   });
 
   div.innerHTML=h+"</div>";
-  updateCloseButton(batch);
+  updateClose(batch);
  });
 }
 
-/* existing functions unchanged */
-function editStock(batch,code,avail,res){...}
-function updateQty(...) { ... }
-function approve(id){ ... }
-function reject(...) { ... }
-function closeBatch(id){ ... }
+/* original actions */
+function editStock(batch,code,avail,res){
+ const v=prompt("New SELLABLE sets",avail);
+ if(v==null) return;
+ if(Number(v)<res) return alert("Below reserved!");
+ fetch(API+`?action=updateBatchAvailable&batchId=${batch}&productCode=${code}&newAvailable=${v}`).then(()=>load());
+}
+
+function updateQty(basket,batch,code){
+ const v=Number(document.getElementById(`qty-${basket}-${code}`).value);
+ if(isNaN(v)||v<0) return alert("Invalid qty");
+ fetch(API+`?action=updateBasketItemQty&basketId=${basket}&batchId=${batch}&productCode=${code}&sets=${v}`)
+ .then(()=>load());
+}
+
+function approve(id){ fetch(API+"?action=approveBasket&basketId="+id).then(()=>load()); }
+
+function reject(id,batch,code){
+ if(!confirm("Reject buyer & return stock?")) return;
+ fetch(API+`?action=rejectBasketItem&basketId=${id}&batchId=${batch}&productCode=${code}`).then(()=>load());
+}
+
+function closeBatch(id){
+ if(!confirm("Close this batch?")) return;
+ fetch(API+"?action=closeBatch&batchId="+id).then(()=>load());
+}
 
 load();
 </script>
