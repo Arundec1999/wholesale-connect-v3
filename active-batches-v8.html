@@ -78,10 +78,7 @@ function drawPage(data){
 
     b.items.forEach(i=>{
       block.innerHTML+=`
-      <div class="row"
-        id="row-${b.batchId}-${i.productCode}"
-        data-avail="${i.availableSets}"
-        data-res="${i.reservedSets}">
+      <div class="row" id="row-${b.batchId}-${i.productCode}">
         <div><img src="${i.image||''}"></div>
         <div><b>${i.productCode}</b><br>${i.productName}</div>
         <div class="godown">${i.godown}</div>
@@ -89,9 +86,7 @@ function drawPage(data){
         <div class="total">${i.totalSets}</div>
         <div class="reserved">${i.reservedSets}</div>
         <div class="available">${i.availableSets}</div>
-        <div>
-          <button onclick="editSellable('${b.batchId}','${i.productCode}')">✏️</button>
-        </div>
+        <div><button onclick="editSellable('${b.batchId}','${i.productCode}')">✏️</button></div>
       </div>
       <div id="buyers-${b.batchId}-${i.productCode}"></div>`;
     });
@@ -102,7 +97,7 @@ function drawPage(data){
   refresh();
 }
 
-/* ---------- REFRESH LOOP ---------- */
+/* ---------- REFRESH ---------- */
 setInterval(refresh,8000);
 
 function refresh(){
@@ -114,21 +109,20 @@ function updatePage(data){
  data.forEach(b=>{
   let hasOpen=false;
 
-  b.items.forEach(i=>{
+  const promises = b.items.map(i=>{
     const row=document.getElementById(`row-${b.batchId}-${i.productCode}`);
-    if(!row) return;
+    if(!row) return Promise.resolve(false);
 
-    row.dataset.avail = i.availableSets;
-    row.dataset.res   = i.reservedSets;
+    row.querySelector(".reserved").innerText=i.reservedSets;
+    row.querySelector(".available").innerText=i.availableSets;
+    row.querySelector(".total").innerText=i.totalSets;
 
-    row.querySelector(".reserved").innerText = i.reservedSets;
-    row.querySelector(".available").innerText = i.availableSets;
-    row.querySelector(".total").innerText = i.totalSets;
+    return loadBuyers(b.batchId,i.productCode);
+  });
 
-    loadBuyers(b.batchId,i.productCode).then(open=>{
-      if(open) hasOpen=true;
-      updateClose(b.batchId,hasOpen);
-    });
+  Promise.all(promises).then(flags=>{
+    flags.forEach(f=>{ if(f) hasOpen=true; });
+    updateClose(b.batchId,hasOpen);
   });
  });
 }
@@ -181,39 +175,19 @@ function updateClose(batch,hasOpen){
 
 /* ---------- ACTIONS ---------- */
 function editSellable(batch, code){
-  const row = document.getElementById(`row-${batch}-${code}`);
-  const avail = Number(row.dataset.avail);
-  const res   = Number(row.dataset.res);
-
-  const v = prompt("New SELLABLE sets", avail);
-  if(v === null) return;
-
-  const n = Number(v);
-  if(isNaN(n) || n < res){
-    alert("Cannot be less than reserved ("+res+")");
-    return;
-  }
-
-  fetch(API+`?action=updateBatchAvailable&batchId=${batch}&productCode=${code}&newAvailable=${n}`)
-    .then(()=>refresh());
+  const v = prompt("New SELLABLE sets");
+  if(v===null) return;
+  fetch(API+`?action=updateBatchAvailable&batchId=${batch}&productCode=${code}&newAvailable=${v}`).then(refresh);
 }
-
 function updateQty(b,batch,code){
  fetch(API+`?action=updateBasketItemQty&basketId=${b}&batchId=${batch}&productCode=${code}&sets=${document.getElementById('qty-'+b+'-'+code).value}`)
- .then(()=>{alert("Approved sets updated"); refresh();});
+ .then(()=>refresh);
 }
-
-function approve(id){
- fetch(API+"?action=approveBasket&basketId="+id)
- .then(()=>{alert("Buyer approved"); refresh();});
-}
-
+function approve(id){fetch(API+"?action=approveBasket&basketId="+id).then(refresh);}
 function reject(id,batch,code){
  if(!confirm("Reject this buyer and return their reserved stock?\nThis cannot be undone.")) return;
- fetch(API+`?action=rejectBasketItem&basketId=${id}&batchId=${batch}&productCode=${code}`)
- .then(()=>{alert("Buyer rejected, stock returned"); refresh();});
+ fetch(API+`?action=rejectBasketItem&basketId=${id}&batchId=${batch}&productCode=${code}`).then(refresh);
 }
-
 function closeBatch(id){
  if(!confirm("Close this batch?\nUnsold stock will return to godown.")) return;
  fetch(API+"?action=closeBatch&batchId="+id).then(()=>location.reload());
