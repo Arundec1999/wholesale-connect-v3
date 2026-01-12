@@ -24,13 +24,8 @@ header{background:#fff;padding:14px 18px;font-size:18px;font-weight:600;border-b
 .row.head{font-weight:bold;background:#f9f9f9}
 .row img{width:55px;height:55px;object-fit:cover;border-radius:6px;border:1px solid #ddd}
 
-.green{color:#1e8f39;font-weight:bold}
-.red{color:#c0392b;font-weight:bold}
-.yellow{color:#f39c12;font-weight:bold}
-
 button{padding:4px 8px;border:1px solid #aaa;background:#fff;cursor:pointer}
-button:hover{background:#eee}
-button[disabled]{background:#eee;color:#aaa;cursor:not-allowed}
+button[disabled]{background:#eee;color:#aaa}
 
 .buyerBox{background:#fafafa;margin:8px 16px 12px;border:1px solid #ddd;border-radius:6px}
 .buyerRow{
@@ -50,18 +45,18 @@ input.qty{width:60px;padding:3px}
 
 <script>
 const API="https://script.google.com/macros/s/AKfycbyBWZeeZbMCpSaOcXeGzXc1o3HMGfko8n2YI4Veu2Ru2CQtyOKN6JNmJMt6ueqBrxxo/exec";
+let supplierId=localStorage.getItem("supplierId")||prompt("Enter Supplier ID");
+localStorage.setItem("supplierId",supplierId);
 
-let supplierId=localStorage.getItem("supplierId");
-if(!supplierId){
-  supplierId=prompt("Enter Supplier ID");
-  localStorage.setItem("supplierId",supplierId);
-}
+let editingInput=null;
+document.addEventListener("focusin",e=>{ if(e.target.classList.contains("qty")) editingInput=e.target.id; });
+document.addEventListener("focusout",()=> editingInput=null);
 
-/* ---------- INITIAL LOAD (once) ---------- */
+/* ---------- INITIAL LOAD ---------- */
 fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
-.then(r=>r.json())
-.then(drawPage);
+.then(r=>r.json()).then(drawPage);
 
+/* ---------- DRAW ---------- */
 function drawPage(data){
   const wrap=document.getElementById("batches");
   wrap.innerHTML="";
@@ -79,8 +74,7 @@ function drawPage(data){
       <div class="row head">
         <div>Img</div><div>Product</div><div>Godown</div>
         <div>Locked</div><div>This Batch</div><div>Reserved</div><div>Sellable</div><div>Edit</div>
-      </div>
-    `;
+      </div>`;
 
     b.items.forEach(i=>{
       block.innerHTML+=`
@@ -92,7 +86,7 @@ function drawPage(data){
         <div class="total">${i.totalSets}</div>
         <div class="reserved">${i.reservedSets}</div>
         <div class="available">${i.availableSets}</div>
-        <div><button onclick="editStock('${b.batchId}','${i.productCode}')">✏️</button></div>
+        <div></div>
       </div>
       <div id="buyers-${b.batchId}-${i.productCode}"></div>`;
     });
@@ -100,74 +94,71 @@ function drawPage(data){
     wrap.appendChild(block);
   });
 
-  refresh(); // first live pull
+  refresh();
 }
 
-/* ---------- LIVE REFRESH LOOP ---------- */
+/* ---------- REFRESH ---------- */
 setInterval(refresh,8000);
 
 function refresh(){
-  fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
-  .then(r=>r.json())
-  .then(updatePage);
+ fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
+ .then(r=>r.json()).then(updatePage);
 }
 
 function updatePage(data){
-  data.forEach(b=>{
-    let hasOpen=false;
+ data.forEach(b=>{
+  let hasOpen=false;
+  b.items.forEach(i=>{
+    const row=document.getElementById(`row-${b.batchId}-${i.productCode}`);
+    if(!row) return;
 
-    b.items.forEach(i=>{
-      const row=document.getElementById(`row-${b.batchId}-${i.productCode}`);
-      if(!row) return;
+    row.querySelector(".reserved").innerText=i.reservedSets;
+    row.querySelector(".available").innerText=i.availableSets;
 
-      row.querySelector(".godown").innerText=i.godown;
-      row.querySelector(".locked").innerText=i.allocatedAll;
-      row.querySelector(".total").innerText=i.totalSets;
-      row.querySelector(".reserved").innerText=i.reservedSets;
-      row.querySelector(".available").innerText=i.availableSets;
-
-      loadBuyers(b.batchId,i.productCode).then(open=>{
-        if(open) hasOpen=true;
-        updateClose(b.batchId,hasOpen);
-      });
+    loadBuyers(b.batchId,i.productCode).then(open=>{
+      if(open) hasOpen=true;
+      updateClose(b.batchId,hasOpen);
     });
   });
+ });
 }
 
 /* ---------- BUYERS ---------- */
 function loadBuyers(batch,code){
  return fetch(API+`?action=getReservationsForBatchProduct&batchId=${batch}&productCode=${code}`)
- .then(r=>r.json())
- .then(res=>{
-   const div=document.getElementById(`buyers-${batch}-${code}`);
-   if(res.data.length===0){div.innerHTML="";return false;}
+ .then(r=>r.json()).then(res=>{
+  const div=document.getElementById(`buyers-${batch}-${code}`);
+  if(res.data.length===0){div.innerHTML="";return false;}
 
-   let open=false;
-   let h=`<div class="buyerBox">
-   <div class="buyerRow head"><div>Buyer</div><div>Req</div><div>Appr</div><div>Status</div><div>Action</div></div>`;
+  let open=false;
+  let h=`<div class="buyerBox">
+  <div class="buyerRow head"><div>Buyer</div><div>Req</div><div>Appr</div><div>Status</div><div>Action</div></div>`;
 
-   res.data.forEach(b=>{
-     if(b.status==="OPEN") open=true;
-     h+=`
-     <div class="buyerRow">
-       <div>${b.buyerId}</div>
-       <div>${b.requestedSets}</div>
-       <div><input class="qty" id="qty-${b.basketId}-${code}" value="${b.approvedSets}"></div>
-       <div>${b.status}</div>
-       <div>
-         <button onclick="updateQty('${b.basketId}','${batch}','${code}')">Update</button>
-         <button onclick="approve('${b.basketId}')">Approve</button>
-         <button onclick="reject('${b.basketId}','${batch}','${code}')">Reject</button>
-       </div>
-     </div>`;
-   });
+  res.data.forEach(b=>{
+    if(b.status==="OPEN") open=true;
+    const id=`qty-${b.basketId}-${code}`;
+    const val = (editingInput===id) ? document.getElementById(id)?.value : b.approvedSets;
 
-   div.innerHTML=h+"</div>";
-   return open;
+    h+=`
+    <div class="buyerRow">
+      <div>${b.buyerId}</div>
+      <div>${b.requestedSets}</div>
+      <div><input class="qty" id="${id}" value="${val||b.approvedSets}"></div>
+      <div>${b.status}</div>
+      <div>
+        <button onclick="updateQty('${b.basketId}','${batch}','${code}')">Update</button>
+        <button onclick="approve('${b.basketId}')">Approve</button>
+        <button onclick="reject('${b.basketId}','${batch}','${code}')">Reject</button>
+      </div>
+    </div>`;
+  });
+
+  div.innerHTML=h+"</div>";
+  return open;
  });
 }
 
-/* ---------- CLOSE BUTTON ---------- */
+/* ---------- CLOSE ---------- */
 function updateClose(batch,hasOpen){
  const wrap=document.getElementById("closeWrap-"+batch);
  if(hasOpen){
@@ -180,13 +171,19 @@ function updateClose(batch,hasOpen){
 
 /* ---------- ACTIONS ---------- */
 function updateQty(b,batch,code){
- const v=document.getElementById(`qty-${b}-${code}`).value;
- fetch(API+`?action=updateBasketItemQty&basketId=${b}&batchId=${batch}&productCode=${code}&sets=${v}`).then(refresh);
+ fetch(API+`?action=updateBasketItemQty&basketId=${b}&batchId=${batch}&productCode=${code}&sets=${document.getElementById('qty-'+b+'-'+code).value}`)
+ .then(()=>alert("Approved sets updated")).then(refresh);
 }
-function approve(id){fetch(API+"?action=approveBasket&basketId="+id).then(refresh);}
-function reject(id,batch,code){fetch(API+`?action=rejectBasketItem&basketId=${id}&batchId=${batch}&productCode=${code}`).then(refresh);}
-function editStock(){}
-function closeBatch(id){if(confirm("Close batch?"))fetch(API+"?action=closeBatch&batchId="+id).then(()=>location.reload());}
+function approve(id){ fetch(API+"?action=approveBasket&basketId="+id).then(()=>alert("Buyer approved")).then(refresh); }
+function reject(id,batch,code){
+ if(!confirm("Reject this buyer and return their reserved stock?\nThis cannot be undone.")) return;
+ fetch(API+`?action=rejectBasketItem&basketId=${id}&batchId=${batch}&productCode=${code}`)
+ .then(()=>alert("Buyer rejected, stock returned")).then(refresh);
+}
+function closeBatch(id){
+ if(!confirm("Close this batch?\nUnsold stock will return to godown.")) return;
+ fetch(API+"?action=closeBatch&batchId="+id).then(()=>location.reload());
+}
 </script>
 
 </body>
