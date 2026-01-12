@@ -78,6 +78,7 @@ fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
     const block=document.createElement("div");
     block.className="batch";
 
+    // detect open buyer reservations
     let hasOpenBuyers=false;
     b.items.forEach(i=>{
       if(Number(i.reservedSets)>0) hasOpenBuyers=true;
@@ -91,7 +92,10 @@ fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
             onclick="closeBatch('${b.batchId}',${hasOpenBuyers})">
             Close Batch
           </button>
-          ${hasOpenBuyers?`<div class="closeMsg">plz approve or reject all buyers to close batch</div>`:""}
+          ${hasOpenBuyers
+            ? `<div class="closeMsg">Please approve or reject all buyer requests to close this batch.</div>`
+            : ""
+          }
         </span>
       </h3>
 
@@ -182,7 +186,7 @@ function reject(id,batch,code){
 }
 
 function closeBatch(id,hasOpen){
- if(hasOpen){ alert("Approve or reject all buyers first"); return; }
+ if(hasOpen){ return; }
  if(!confirm("Close this batch?")) return;
  fetch(API+"?action=closeBatch&batchId="+id).then(()=>load());
 }
