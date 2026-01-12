@@ -194,9 +194,58 @@ function reject(id,batch,code){ fetch(API+`?action=rejectBasketItem&basketId=${i
 function closeBatch(id){ if(confirm("Close this batch?")) fetch(API+"?action=closeBatch&batchId="+id).then(()=>load()); }
 
 /* 🔁 Silent refresh */
-setInterval(load,10000);
+
 load();
 </script>
 
+/* 🔁 SILENT AUTO REFRESH (no flicker) */
+setInterval(refreshBuyers, 10000);
+
+function refreshBuyers(){
+  document.querySelectorAll("[id^='buyers-']").forEach(div=>{
+    const parts = div.id.replace("buyers-","").split("-");
+    const batchId = parts[0];
+    const productCode = parts.slice(1).join("-");
+
+    fetch(API+`?action=getReservationsForBatchProduct&batchId=${batchId}&productCode=${productCode}`)
+      .then(r=>r.json())
+      .then(res=>{
+        if(res.status!=="success") return;
+
+        let hasOpen=false;
+
+        res.data.forEach(b=>{
+          const input=document.getElementById(`qty-${b.basketId}-${productCode}`);
+          if(input) input.value = b.approvedSets;
+
+          const row = input?.closest(".buyerRow");
+          if(row){
+            row.children[3].innerText = b.status;
+          }
+
+          if(b.status==="OPEN") hasOpen=true;
+        });
+
+        updateCloseButton(batchId, hasOpen);
+      });
+  });
+}
+
+/* 🔒 Close button control */
+function updateCloseButton(batchId, hasOpen){
+  const wrap = document.getElementById("closeWrap-"+batchId);
+  if(!wrap) return;
+
+  if(hasOpen){
+    wrap.innerHTML=`
+      <button disabled>Close Batch</button>
+      <div class="closeMsg">Please approve or reject all buyer requests to close this batch.</div>
+    `;
+  }else{
+    wrap.innerHTML=`<button onclick="closeBatch('${batchId}')">Close Batch</button>`;
+  }
+}
+
+  
 </body>
 </html>
