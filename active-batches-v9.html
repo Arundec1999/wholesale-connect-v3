@@ -30,7 +30,7 @@ button[disabled]{background:#eee;color:#aaa;cursor:not-allowed}
 .buyerBox{background:#fafafa;margin:8px 16px 12px;border:1px solid #ddd;border-radius:6px}
 .buyerRow{
   display:grid;
-  grid-template-columns:120px 90px 90px 90px 240px;
+  grid-template-columns:120px 80px 80px 80px 260px;
   padding:6px 10px;font-size:12px;border-top:1px solid #eee;align-items:center
 }
 .buyerRow.head{font-weight:bold;background:#eee}
@@ -45,6 +45,7 @@ input.qty{width:60px;padding:3px}
 
 <script>
 const API="https://script.google.com/macros/s/AKfycbyBWZeeZbMCpSaOcXeGzXc1o3HMGfko8n2YI4Veu2Ru2CQtyOKN6JNmJMt6ueqBrxxo/exec";
+
 let supplierId=localStorage.getItem("supplierId")||prompt("Enter Supplier ID");
 localStorage.setItem("supplierId",supplierId);
 
@@ -52,7 +53,6 @@ let editingInput=null;
 document.addEventListener("focusin",e=>{ if(e.target.classList.contains("qty")) editingInput=e.target.id; });
 document.addEventListener("focusout",()=> editingInput=null);
 
-/* ================= INITIAL DRAW ================= */
 fetch(API+"?action=getSupplierActiveBatches&supplierId="+supplierId)
 .then(r=>r.json()).then(drawPage);
 
@@ -63,7 +63,6 @@ function drawPage(data){
   data.forEach(b=>{
     const block=document.createElement("div");
     block.className="batch";
-    block.id="batch-"+b.batchId;
 
     block.innerHTML=`
       <h3>
@@ -72,7 +71,8 @@ function drawPage(data){
       </h3>
       <div class="row head">
         <div>Img</div><div>Product</div><div>Godown</div>
-        <div>Locked</div><div>This Batch</div><div>Reserved</div><div>Sellable</div><div>Edit</div>
+        <div>Locked</div><div>This Batch</div>
+        <div>Requested</div><div>Sellable</div><div>Edit</div>
       </div>`;
 
     b.items.forEach(i=>{
@@ -81,9 +81,9 @@ function drawPage(data){
         <div><img src="${i.image||''}"></div>
         <div><b>${i.productCode}</b><br>${i.productName}</div>
         <div class="godown">${i.godown}</div>
-        <div class="locked">${i.allocatedAll}</div>
+        <div class="locked">${i.approvedSets}</div>
         <div class="total">${i.totalSets}</div>
-        <div class="reserved">${i.reservedSets}</div>
+        <div class="requested">${i.requestedSets}</div>
         <div class="available">${i.availableSets}</div>
         <div><button onclick="editSellable('${b.batchId}','${i.productCode}')">✏️</button></div>
       </div>
@@ -96,7 +96,6 @@ function drawPage(data){
   refresh();
 }
 
-/* ================= LIVE REFRESH ================= */
 setInterval(refresh,8000);
 
 function refresh(){
@@ -113,9 +112,9 @@ function updatePage(data){
     if(!row) return;
 
     row.querySelector(".godown").innerText=i.godown;
-    row.querySelector(".locked").innerText=i.allocatedAll;
+    row.querySelector(".locked").innerText=i.approvedSets;
     row.querySelector(".total").innerText=i.totalSets;
-    row.querySelector(".reserved").innerText=i.reservedSets;
+    row.querySelector(".requested").innerText=i.requestedSets;
     row.querySelector(".available").innerText=i.availableSets;
 
     loadBuyers(b.batchId,i.productCode).then(open=>{
@@ -126,7 +125,6 @@ function updatePage(data){
  });
 }
 
-/* ================= BUYERS ================= */
 function loadBuyers(batch,code){
  return fetch(API+`?action=getReservationsForBatchProduct&batchId=${batch}&productCode=${code}`)
  .then(r=>r.json()).then(res=>{
@@ -139,9 +137,8 @@ function loadBuyers(batch,code){
 
   res.data.forEach(b=>{
     if(b.status==="OPEN") open=true;
-
     const id=`qty-${b.basketId}-${code}`;
-    const val = (editingInput===id) ? document.getElementById(id)?.value : b.approvedSets;
+    const val=(editingInput===id)?document.getElementById(id)?.value:b.approvedSets;
 
     h+=`
     <div class="buyerRow">
@@ -162,26 +159,21 @@ function loadBuyers(batch,code){
  });
 }
 
-/* ================= CLOSE ================= */
 function updateClose(batch,hasOpen){
  const wrap=document.getElementById("closeWrap-"+batch);
  if(hasOpen){
    wrap.innerHTML=`<button disabled>Close Batch</button>
-   <div class="closeMsg">Please approve or reject all buyer requests to close this batch.</div>`;
+   <div class="closeMsg">Approve or reject all buyer requests to close this batch</div>`;
  }else{
    wrap.innerHTML=`<button onclick="closeBatch('${batch}')">Close Batch</button>`;
  }
 }
 
-/* ================= ACTIONS ================= */
 function editSellable(batch, code){
  const row=document.getElementById(`row-${batch}-${code}`);
  const avail=row.querySelector(".available").innerText;
- const res=row.querySelector(".reserved").innerText;
-
  const v=prompt("New SELLABLE sets",avail);
  if(v===null) return;
- if(Number(v)<Number(res)) return alert("Below reserved");
 
  fetch(API+`?action=updateBatchAvailable&batchId=${batch}&productCode=${code}&newAvailable=${v}`)
  .then(()=>refresh());
@@ -193,16 +185,18 @@ function updateQty(b,batch,code){
  .then(()=>refresh());
 }
 
-function approve(id){fetch(API+"?action=approveBasket&basketId="+id).then(()=>refresh());}
+function approve(id){
+ fetch(API+"?action=approveBasket&basketId="+id).then(()=>refresh());
+}
 
 function reject(id,batch,code){
- if(!confirm("Reject buyer & return stock?")) return;
+ if(!confirm("Reject buyer and return stock?")) return;
  fetch(API+`?action=rejectBasketItem&basketId=${id}&batchId=${batch}&productCode=${code}`)
  .then(()=>refresh());
 }
 
 function closeBatch(id){
- if(!confirm("Close this batch?\nUnsold stock will return to godown.")) return;
+ if(!confirm("Close this batch? Unsold stock will return to godown.")) return;
  fetch(API+"?action=closeBatch&batchId="+id).then(()=>location.reload());
 }
 </script>
